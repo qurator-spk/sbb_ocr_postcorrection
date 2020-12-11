@@ -1,0 +1,6 @@
+click
+langid
+matplotlib
+numpy
+pandas
+torch
