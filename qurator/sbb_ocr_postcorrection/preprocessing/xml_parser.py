@@ -3,7 +3,7 @@ from lxml import etree as ET
 import re
 import xml.sax
 
-from qurator.sbb_ocr_correction.helpers import get_file_paths
+from qurator.sbb_ocr_postcorrection.helpers import get_file_paths
 
 
 #####################################

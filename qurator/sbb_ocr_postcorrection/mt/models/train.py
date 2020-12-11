@@ -8,7 +8,7 @@ from torch import optim
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from qurator.sbb_ocr_correction.helpers import timeSince, showPlot
+from qurator.sbb_ocr_postcorrection.helpers import timeSince, showPlot
 
 
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,

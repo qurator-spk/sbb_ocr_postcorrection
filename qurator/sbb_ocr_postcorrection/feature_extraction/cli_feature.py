@@ -8,7 +8,7 @@ from .encoding import add_padding, create_encoding_mappings, encode_sequence, fi
 from .tokenization import WordpieceTokenizer
 from .wordpiece import WordpieceVocabGenerator
 
-from qurator.sbb_ocr_correction.data_preproc.database import load_alignments_from_sqlite
+from qurator.sbb_ocr_postcorrection.data_preproc.database import load_alignments_from_sqlite
 
 
 @click.command()

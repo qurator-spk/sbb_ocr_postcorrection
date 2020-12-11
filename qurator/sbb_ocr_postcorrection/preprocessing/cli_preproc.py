@@ -15,8 +15,8 @@ from .database import load_alignments_from_sqlite, save_alignments_to_sqlite
 from .xml_parser import clean_tei, convert_to_page_id, \
     create_ocr_gt_id_mappings, extract_page_fulltext, TEIHandler
 
-from qurator.sbb_ocr_correction.feature_extraction.encoding import add_padding
-from qurator.sbb_ocr_correction.helpers import add_seq_id_to_aligned_seq, \
+from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import add_padding
+from qurator.sbb_ocr_postcorrection.helpers import add_seq_id_to_aligned_seq, \
     align_context, combine_sequences_to_str, \
     create_incremental_context_alignment, gather_aligned_sequences, \
     get_file_paths, get_gt_path_subset, normalize_char_alignments, \

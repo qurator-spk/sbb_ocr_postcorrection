@@ -15,9 +15,9 @@ from .models.predict import predict, predict_detector, predict_iters, \
 from .models.train import  train, train_detector, train_iters, \
     train_iters_detector
 
-from qurator.sbb_ocr_correction.feature_extraction.encoding import decode_sequence
-from qurator.sbb_ocr_correction.helpers import find_max_mod
-from qurator.sbb_ocr_correction.preprocessing.database import \
+from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
+from qurator.sbb_ocr_postcorrection.helpers import find_max_mod
+from qurator.sbb_ocr_postcorrection.preprocessing.database import \
     load_alignments_from_sqlite
 import qurator.dinglehopper.character_error_rate as character_error_rate
 from qurator.dinglehopper.align import seq_align
