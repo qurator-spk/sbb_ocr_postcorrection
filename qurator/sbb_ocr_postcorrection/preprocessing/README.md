@@ -1,3 +1,3 @@
-# dta
+# preprocessing
 
-This director contains code for the pre-processing of the DTA data set. 
+This directory contains code for alignment and preprocessing of OCR and GT data. 
