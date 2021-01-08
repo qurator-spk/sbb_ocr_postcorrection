@@ -77,6 +77,7 @@ def align_sequences(ocr_dir, gt_dir, out_dir):
             ocr_page_length = len(ocr_data[ocr_doc_id][ocr_page_id])
             if gt_page_length == 0 or ocr_page_length == 0:
                 continue
+
             # sequence alignment and similarity check
             aligned_sequences = seq_align(ocr_data[ocr_doc_id][ocr_page_id], gt_data[gt_doc_id][gt_page_id])
             aligned_sequences_with_id = add_seq_id_to_aligned_seq(aligned_sequences)
