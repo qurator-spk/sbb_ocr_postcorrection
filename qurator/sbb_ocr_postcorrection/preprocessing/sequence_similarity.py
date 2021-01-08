@@ -47,6 +47,8 @@ def check_sequence_similarity(aligned_sequence, similarity_range=(0.01, 0.1), co
     similarity_encoding = []
     left, right = zip(*list(aligned_sequence))
 
+    #import pdb; pdb.set_trace()
+
     for ocr, gt in zip(left, right):
         ocr_id = ocr[0]
         ocr_seq = ocr[1]
@@ -58,7 +60,7 @@ def check_sequence_similarity(aligned_sequence, similarity_range=(0.01, 0.1), co
             min_distance = int(round((len(gt_seq) * similarity_range[0]), 0))
             max_distance = int(round((len(gt_seq) * similarity_range[1]), 0))
             levenshtein_distance = edit_distance.distance(ocr_seq, gt_seq)
-            cer = character_error_rate.character_error_rate(gt_seq, ocr_seq)
+            cer = character_error_rate(gt_seq, ocr_seq)
 
             if min_distance <= levenshtein_distance <= max_distance:
                 ocr_sequences.append((ocr_id, ocr_seq))
@@ -81,7 +83,9 @@ def check_sequence_similarity(aligned_sequence, similarity_range=(0.01, 0.1), co
                     similarity_encoding.append(0)
                     continue
 
-        except:
+        except Exception as e:
+            #print(type(e))
+            #print(e)
             pass
 
     levenshtein_distances = list(map(int, levenshtein_distances))
