@@ -15,6 +15,7 @@ from .database import load_alignments_from_sqlite, save_alignments_to_sqlite
 from .xml_parser import clean_tei, convert_to_page_id, \
     create_ocr_gt_id_mappings, extract_page_fulltext, TEIHandler
 
+from qurator.sbb_ocr_postcorrection.data_structures.corpus import Corpus
 from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import add_padding
 from qurator.sbb_ocr_postcorrection.helpers import add_seq_id_to_aligned_seq, \
     align_context, combine_sequences_to_str, \
@@ -30,9 +31,12 @@ from qurator.dinglehopper.align import align, seq_align
 @click.argument('out-dir', type=click.Path(exists=False))
 def align_sequences(ocr_dir, gt_dir, out_dir):
     '''
+    Align OCR and GT sequences.
+
+    \b
     Arguments:
-    ocr-dir --
-    gt-dir --
+    ocr-dir -- The absolute path to the OCR json file.
+    gt-dir -- The absolute path to the GT json file.
     out-dir -- The absolute path to the aligned seq json file.
     '''
 
@@ -127,10 +131,12 @@ def align_sequences(ocr_dir, gt_dir, out_dir):
 @click.argument('out-dir', type=click.Path(exists=False))
 def apply_sliding_window(in_dir, out_dir):
     '''
-    Helper functions should be moved elsewhere (in the long run)
+    Apply sliding window reformatting to aligned data.
 
-    in-dir -- aligned JSON data
-    out-dir -- aligned JSON data, sliding window
+    \b
+    Arguments:
+    in-dir -- The absolute path to the aligned JSON data
+    out-dir -- The absolute path to the aligned JSON data (sliding window)
     '''
 
     # START: script
@@ -140,6 +146,7 @@ def apply_sliding_window(in_dir, out_dir):
 
     aligned_corpus_context_aligned, splitted_ocr_page, splitted_gt_page, aligned_context_ocr_page, aligned_context_gt_page = create_incremental_context_alignment(aligned_corpus)
 
+    # Helper functions should be moved elsewhere (in the long run)
     def generator(page):
         for ocr_line, gt_line in zip(page[0], page[1]):
             yield ((ocr_line[0], ocr_line[1]), (gt_line[0], gt_line[1]))
@@ -356,13 +363,25 @@ def create_detector_targets(training_dir, validation_dir, testing_dir,
 @click.option('--target-lang', default='de', help='The target language, i.e. the language to be kept.')
 def filter_language(in_dir, out_dir, target_lang):
     '''
-    Currently using unsqueeze_corpus; TODO: use developed dataset class
+    Apply language filter to aligned data.
 
-    in-dir -- Aligned data in JSON
-    out-dir -- Filtered data in DB
+    \b
+    Arguments:
+    in-dir -- The absolute path to the aligned data (JSON)
+    out-dir -- The absolute path to the filtered data (DB)
     '''
 
-    unfiltered_data = unsqueeze_corpus(in_dir, out_dir, save=False)
+    with io.open(in_dir, mode='r') as f_in:
+        aligned_corpus = json.load(f_in)
+
+    corpus = Corpus()
+
+    for doc_id, doc in aligned_corpus.items():
+        corpus.add_doc(doc_id, doc)
+
+    corpus.convert_to_sqlite_format()
+
+#    unfiltered_data = unsqueeze_corpus(in_dir, out_dir, save=False)
 
     #loaded_data, loaded_data_as_df, headers = load_alignments_from_sqlite(path=input_path, size='total')
     identifier = LanguageIdentifier.from_modelstring(model, norm_probs=True)
@@ -407,7 +426,7 @@ def filter_language(in_dir, out_dir, target_lang):
 #            len_german_corpus += len(new_ocr_page)
 
     filtered_data = []
-    for i, alignment in enumerate(unfiltered_data):
+    for i, alignment in enumerate(corpus.aligned_sequences):
         gt_seq = alignment[4] # GT is taken as it is supposed to contain fewer errors than the OCR
         lang, prob = identifier.classify(gt_seq)
 
@@ -431,6 +450,9 @@ def filter_language(in_dir, out_dir, target_lang):
 #@click.argument('out-gt-dir', type=click.Path(exists=True))
 def parse_xml(ocr_dir, gt_dir, out_dir):
     '''
+    Parse OCR and GT XML and save respective JSON files to output directory.
+
+    \b
     Arguments:
     ocr-dir -- OCR root path
     gt-dir -- GT root path
@@ -1010,6 +1032,9 @@ def split_dataset_2(in_dir, out_dir, training_proportion):
 @click.option('--seed', default=49, help='The seed of the random number generator.')
 def split_dataset_sliding_window(in_dir, out_dir, seed):
     '''
+    Split aligned data (sliding window) into training, validation and testing sets.
+
+    \b
     Arguments:
     in-dir -- Input database
     out-dir -- Path to output databases
