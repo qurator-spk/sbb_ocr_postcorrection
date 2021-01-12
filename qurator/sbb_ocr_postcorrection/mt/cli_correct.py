@@ -7,7 +7,6 @@ import os
 import pickle
 import torch
 
-from .preproc.data import OCRCorrectionDataset
 from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
 from .models.error_detector import DetectorLSTM, DetectorGRU
 from .models.predict import predict, predict_detector, predict_iters, \
@@ -15,6 +14,7 @@ from .models.predict import predict, predict_detector, predict_iters, \
 from .models.train import  train, train_detector, train_iters, \
     train_iters_detector
 
+from qurator.sbb_ocr_postcorrection.data_structures import OCRCorrectionDataset
 from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
 from qurator.sbb_ocr_postcorrection.helpers import find_max_mod
 from qurator.sbb_ocr_postcorrection.preprocessing.database import \
