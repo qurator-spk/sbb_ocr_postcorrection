@@ -30,6 +30,7 @@ from qurator.dinglehopper.align import seq_align
 @click.argument('error-pred-dir', type=click.Path(exists=True))
 def detect_errors(ocr_dir, targets_dir, targets_char_dir, error_pred_dir):
     '''
+    \b
     Arguments:
     ocr-dir --
     targets-dir --
@@ -165,6 +166,7 @@ def evaluate_detector(ocr_dir, targets_dir, pred_dir, gt_dir, hyper_params_dir,
                       pred_arr_dir, pred_sent_dir, pred_nopad_dir,
                       targets_arr_dir, targets_sent_dir, targets_nopad_dir):
     '''
+    \b
     Arguments:
     ocr-dir --
     targets-dir --
@@ -444,6 +446,7 @@ def evaluate_detector(ocr_dir, targets_dir, pred_dir, gt_dir, hyper_params_dir,
 @click.argument('loss-dir', type=click.Path(exists=True))
 def evaluate_loss(loss_dir):
     '''
+    \b
     Arguments:
     loss-dir --
     '''
@@ -469,6 +472,7 @@ def evaluate_loss(loss_dir):
 @click.argument('gt-dir', type=click.Path(exists=True))
 def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir):
     '''
+    \b
     Arguments:
     align-dir --
     pred-dir --
@@ -563,6 +567,7 @@ def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir):
 @click.argument('pred-dir', type=click.Path(exists=True))
 def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, pred_dir):
     '''
+    \b
     Arguments:
     ocr-dir --
     gt-dir --
@@ -655,6 +660,7 @@ def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, pred_dir):
 def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
                        code_to_token_dir, out_dir):
     '''
+    \b
     Arguments:
     ocr-dir --
     gt-dir --
@@ -793,12 +799,15 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
                    hidden_size, batch_size, n_epochs, lr, node_type, n_layers,
                    bidir, dropout_prob):
     '''
+    Train detector component of OCR post-correction pipeline.
+
+    \b
     Arguments:
-    ocr-dir --
-    gt-dir --
-    targets-dir --
-    model-out-dir --
-    token-to-code-dir --
+    ocr-dir -- The absolute path to the OCR data
+    gt-dir -- The absolute path to the GT data
+    targets-dir -- The absolute path to the targets
+    model-out-dir -- The absolute path for the trained models
+    token-to-code-dir -- The absolute path to the token-encoding mapping
     '''
 
     out_dir, model_file = os.path.split(model_out_dir)
@@ -920,11 +929,14 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
                      hidden_size, batch_size, n_epochs, lr, n_layers, attention,
                      dropout_prob, teacher_ratio):
     '''
+    Train translator component of OCR post-correction pipeline.
+
+    \b
     Arguments:
-    ocr-dir --
-    gt-dir --
-    model-out-dir --
-    token-to-code-dir --
+    ocr-dir -- The absolute path to the OCR data
+    gt-dir -- The absolute path to the GT data
+    model-out-dir -- The absolute path for the trained models
+    token-to-code-dir -- The absolute path to the token-encoding mapping
     '''
 
     out_dir, model_file = os.path.split(model_out_dir)
