@@ -12,8 +12,8 @@ from .models.gan import Discriminator, Generator
 from .models.predict import predict, predict_detector, predict_iters, \
     predict_iters_detector
 from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
-from .models.train import  train, train_detector, train_iters, \
-    train_iters_detector
+from .models.train import  train_iters_detector, train_iters_gan, \
+    train_iters_seq2seq
 
 from qurator.sbb_ocr_postcorrection.data_structures import OCRCorrectionDataset
 from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
@@ -1014,31 +1014,33 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
         json.dump(hyper_params, params_file)
 
     if approach == 'seq2seq':
-        component1 = EncoderLSTM(input_size, hidden_size, batch_size, n_layers, device=device).to(device)
+        encoder = EncoderLSTM(input_size, hidden_size, batch_size, n_layers, device=device).to(device)
 
         if attention:
-            component2 = AttnDecoderLSTM(hidden_size, output_size, batch_size, seq_length, num_layers=n_layers, dropout=dropout_prob, device=device).to(device)
+            decoder = AttnDecoderLSTM(hidden_size, output_size, batch_size, seq_length, num_layers=n_layers, dropout=dropout_prob, device=device).to(device)
         else:
-            component2 = DecoderLSTM(hidden_size, output_size, batch_size, device=device).to(device)
+            decoder = DecoderLSTM(hidden_size, output_size, batch_size, device=device).to(device)
+
+        print('\n4. TRAIN MODEL')
+        trained_encoder, trained_decoder, encoder_optimizer, decoder_optimizer \
+            = train_iters_seq2seq(model_out_dir, loss_dir, training_set,
+                        encoder, decoder, n_epochs=n_epochs,
+                        batch_size=batch_size, learning_rate=lr,
+                        with_attention=attention, plot_every=5, print_every=1,
+                        save_every=2, teacher_forcing_ratio=teacher_ratio,
+                        device=device)
+
+        root, ext = os.path.splitext(model_out_dir)
+        model_out_dir = root + '_final' + ext
+
+        torch.save({
+            'trained_encoder': trained_encoder.state_dict(),
+            'trained_decoder': trained_decoder.state_dict(),
+            'encoder_optimizer': encoder_optimizer.state_dict(),
+            'decoder_optimizer': decoder_optimizer.state_dict()
+        }, model_out_dir)
+
     elif approach == 'gan':
         pass
     else:
         print('NOTE: OCR Post-Correction approach must be either "seq2seq" or "gan".')
-
-    print('\n4. TRAIN MODEL')
-    trained_encoder, trained_decoder, encoder_optimizer, decoder_optimizer \
-        = train_iters(model_out_dir, loss_dir, training_set, component1, component2, n_epochs=n_epochs,
-                     batch_size=batch_size, learning_rate=lr, with_attention=attention,
-                     plot_every=5, print_every=1, save_every=2,
-                     teacher_forcing_ratio=teacher_ratio,
-                     device=device)
-
-    root, ext = os.path.splitext(model_out_dir)
-    model_out_dir = root + '_final' + ext
-
-    torch.save({
-        'trained_encoder': trained_encoder.state_dict(),
-        'trained_decoder': trained_decoder.state_dict(),
-        'encoder_optimizer': encoder_optimizer.state_dict(),
-        'decoder_optimizer': decoder_optimizer.state_dict()
-    }, model_out_dir)
