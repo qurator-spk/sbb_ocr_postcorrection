@@ -3,12 +3,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Discriminator(nn.Module):
-    def __init__(self):
+    def __init__(self, input_size, hidden_size, output_size, dropout_prob=0):
         super(Discriminator, self).__init__()
-        pass
 
-    def forward(self):
-        pass
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+
+        self.embedding = nn.Embedding(input_size, hidden_size)
+        self.fc1 = nn.Linear(hidden_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+
+        self.dropout = nn.Dropout(dropout_prob)
+
+    def forward(self, x):
+
+        x = self.embedding(x)
+        x = F.leaky_relu(self.fc1(x), 0.2)
+        x = self.dropout(x)
+        x = self.fc2(x)
+
+        return x
 
 class Generator(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, batch_size, num_layers=1, bidirectional=False, dropout=0, activation='softmax', device='cpu'):
@@ -26,9 +41,9 @@ class Generator(nn.Module):
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=num_layers, batch_first=True)
         if self.bidirectional:
-            self.linear = nn.Linear(hidden_size*2, output_size)
+            self.fc = nn.Linear(hidden_size*2, output_size)
         else:
-            self.linear = nn.Linear(hidden_size, output_size)
+            self.fc = nn.Linear(hidden_size, output_size)
 
         if activation == 'softmax':
             self.activation = nn.LogSoftmax(dim=1)
@@ -41,7 +56,7 @@ class Generator(nn.Module):
         lstm_output, (hidden, cell) = self.lstm(embedded, (hidden, cell))
 
         # not sure; maybe wrong dimensions
-        linear_output = self.linear(lstm_output).view(self.batch_size, -1)
+        linear_output = self.fc(lstm_output).view(self.batch_size, -1)
 
         return self.activation(linear_output), hidden, cell
 
