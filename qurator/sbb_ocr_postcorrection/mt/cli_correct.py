@@ -918,15 +918,15 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
 @click.argument('gt-dir', type=click.Path(exists=True))
 @click.argument('model-out-dir', type=click.Path(exists=True))
 @click.argument('token-to-code-dir', type=click.Path(exists=True)) #only needed for encoding_size; maybe find alternative
-@click.argument('--approach', default='seq2seq', help='The OCR post-correction approach ("seq2seq" or "gan").')
-@click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture.')
-@click.option('--batch-size', default=200, help='The training batch size.')
-@click.option('--n-epochs', default=1000, help='The number of training epochs.')
-@click.option('--lr', default=0.0001, help='The learning rate.')
-@click.option('--n-layers', default=2, help='The number of RNN layers.')
-@click.option('--attention/--no-attention', default=True, help='--attention: Use attention mechanism; --no-attention: Use no attention mechanism.')
-@click.option('--dropout-prob', default=0.2, help='The dropout probability.')
-@click.option('--teacher-ratio', default=0.5, help='The teacher ratio probability.')
+@click.option('--approach', default='seq2seq', help='The OCR post-correction approach ("seq2seq" or "gan").')
+@click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture. (default: 512)')
+@click.option('--batch-size', default=200, help='The training batch size. (default: 200)')
+@click.option('--n-epochs', default=1000, help='The number of training epochs. (default: 1000)')
+@click.option('--lr', default=0.0001, help='The learning rate. (default: 0.0001)')
+@click.option('--n-layers', default=2, help='The number of RNN layers. (default: 2)')
+@click.option('--attention/--no-attention', default=True, help='--attention: Use attention mechanism; --no-attention: Use no attention mechanism. (default: True)')
+@click.option('--dropout-prob', default=0.2, help='The dropout probability. (default: 0.2)')
+@click.option('--teacher-ratio', default=0.5, help='The teacher ratio probability. (default: 0.5)')
 def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
                      approach, hidden_size, batch_size, n_epochs, lr, n_layers,
                      attention, dropout_prob, teacher_ratio):
@@ -949,8 +949,8 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     print('\n1. LOAD DATA (ALIGNMENTS, ENCODINGS, ENCODING MAPPINGS)')
 
-    ocr_encodings = np.load(encoded_training_ocr_path, allow_pickle=True)
-    gt_encodings = np.load(encoded_training_gt_path, allow_pickle=True)
+    ocr_encodings = np.load(ocr_dir, allow_pickle=True)
+    gt_encodings = np.load(gt_dir, allow_pickle=True)
 
     size_dataset = find_max_mod(len(ocr_encodings), batch_size)
 
@@ -959,7 +959,7 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     assert ocr_encodings.shape == gt_encodings.shape
 
-    with io.open(token_to_code_path, mode='r') as f_in:
+    with io.open(token_to_code_dir, mode='r') as f_in:
         token_to_code_mapping = json.load(f_in)
 
     print('OCR encoding dimensions: {}'.format(ocr_encodings.shape))
@@ -1041,6 +1041,24 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
         }, model_out_dir)
 
     elif approach == 'gan':
-        pass
+        generator = Generator(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device='cpu')
+        discriminator = Discriminator(input_size, hidden_size, output_size)
+
+        trained_generator, trained_discriminator, generator_optimizer, \
+            discriminator_optimizer = train_iters_gan(model_out_dir, loss_dir,
+                training_set, generator, discriminator, n_epochs=n_epochs,
+                batch_size=batch_size, learning_rate=lr, plot_every=5,
+                print_every=1, save_every=2,
+                teacher_forcing_ratio=teacher_ratio, device=device)
+
+        root, ext = os.path.splitext(model_out_dir)
+        model_out_dir = root + '_final' + ext
+
+        torch.save({
+            'trained_generator': trained_generator.state_dict(),
+            'trained_discriminator': trained_discriminator.state_dict(),
+            'generator_optimizer': generator_optimizer.state_dict(),
+            'discriminator_optimizer': discriminator_optimizer.state_dict()
+        }, model_out_dir)
     else:
         print('NOTE: OCR Post-Correction approach must be either "seq2seq" or "gan".')
