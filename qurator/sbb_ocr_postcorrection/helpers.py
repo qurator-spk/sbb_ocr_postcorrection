@@ -9,6 +9,7 @@ import matplotlib.ticker as ticker
 import os
 import re
 import string
+import sys
 import time
 import unicodedata
 
@@ -46,8 +47,12 @@ def showPlot(points):
     plt.plot(points)
 
 def find_max_mod(s, b, current_max_valid=0):
+    '''
+    Inspired by: https://stackoverflow.com/questions/47571407/finding-the-the-largest-number-in-a-list-that-its-modulo-with-a-given-number-is
+    '''
     if isinstance(s, int):
-        s = list(range(1, s+1))
+        s = list(range(s-b, s+1))
+        assert len(s) <= sys.getrecursionlimit(), 'Decrease batch size to avoid RecursionError'
     if s[0] % b == 0:
         if current_max_valid < s[0]:
             current_max_valid = s[0]
