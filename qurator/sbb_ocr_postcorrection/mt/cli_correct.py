@@ -7,10 +7,11 @@ import os
 import pickle
 import torch
 
-from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
 from .models.error_detector import DetectorLSTM, DetectorGRU
+from .models.gan import Discriminator, Generator
 from .models.predict import predict, predict_detector, predict_iters, \
     predict_iters_detector
+from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
 from .models.train import  train, train_detector, train_iters, \
     train_iters_detector
 
@@ -917,6 +918,7 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
 @click.argument('gt-dir', type=click.Path(exists=True))
 @click.argument('model-out-dir', type=click.Path(exists=True))
 @click.argument('token-to-code-dir', type=click.Path(exists=True)) #only needed for encoding_size; maybe find alternative
+@click.argument('--approach', default='seq2seq', help='The OCR post-correction approach ("seq2seq" or "gan").')
 @click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture.')
 @click.option('--batch-size', default=200, help='The training batch size.')
 @click.option('--n-epochs', default=1000, help='The number of training epochs.')
@@ -926,8 +928,8 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
 @click.option('--dropout-prob', default=0.2, help='The dropout probability.')
 @click.option('--teacher-ratio', default=0.5, help='The teacher ratio probability.')
 def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
-                     hidden_size, batch_size, n_epochs, lr, n_layers, attention,
-                     dropout_prob, teacher_ratio):
+                     approach, hidden_size, batch_size, n_epochs, lr, n_layers,
+                     attention, dropout_prob, teacher_ratio):
     '''
     Train translator component of OCR post-correction pipeline.
 
@@ -1011,16 +1013,21 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
     with io.open(hyper_params_dir, mode='w') as params_file:
         json.dump(hyper_params, params_file)
 
-    encoder = EncoderLSTM(input_size, hidden_size, batch_size, n_layers, device=device).to(device)
+    if approach == 'seq2seq':
+        component1 = EncoderLSTM(input_size, hidden_size, batch_size, n_layers, device=device).to(device)
 
-    if attention:
-        decoder = AttnDecoderLSTM(hidden_size, output_size, batch_size, seq_length, num_layers=n_layers, dropout=dropout_prob, device=device).to(device)
+        if attention:
+            component2 = AttnDecoderLSTM(hidden_size, output_size, batch_size, seq_length, num_layers=n_layers, dropout=dropout_prob, device=device).to(device)
+        else:
+            component2 = DecoderLSTM(hidden_size, output_size, batch_size, device=device).to(device)
+    elif approach == 'gan':
+        pass
     else:
-        decoder = DecoderLSTM(hidden_size, output_size, batch_size, device=device).to(device)
+        print('NOTE: OCR Post-Correction approach must be either "seq2seq" or "gan".')
 
     print('\n4. TRAIN MODEL')
     trained_encoder, trained_decoder, encoder_optimizer, decoder_optimizer \
-        = train_iters(model_out_dir, loss_dir, training_set, encoder, decoder, n_epochs=n_epochs,
+        = train_iters(model_out_dir, loss_dir, training_set, component1, component2, n_epochs=n_epochs,
                      batch_size=batch_size, learning_rate=lr, with_attention=attention,
                      plot_every=5, print_every=1, save_every=2,
                      teacher_forcing_ratio=teacher_ratio,
