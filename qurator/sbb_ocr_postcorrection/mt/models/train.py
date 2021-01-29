@@ -8,6 +8,8 @@ from torch import optim
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from .gan import fake_loss, real_loss
+from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
 from qurator.sbb_ocr_postcorrection.helpers import timeSince, showPlot
 
 def train_detector(input_tensor, target_tensor, detector, optimizer,
@@ -63,6 +65,7 @@ def train_detector(input_tensor, target_tensor, detector, optimizer,
                 detector(input_tensor[di], detector_hidden, detector_cell)
 
             loss += criterion(detector_output, target_tensor[di])
+
     elif detector.node_type == 'gru':
         for di in range(input_length):
 
@@ -195,12 +198,6 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     the loss averaged by target length (float)
     '''
 
-    ###################
-    #                 #
-    #  Encoding Step  #
-    #                 #
-    ###################
-
     generator_hidden = generator.init_hidden_state()
     generator_cell = generator.init_cell_state()
 
@@ -217,99 +214,55 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     # Batch size implementation needs to be checked
     generator_outputs = torch.zeros(batch_size,
                                   target_length,
-                                  generator.hidden_size,
+                                  generator.output_size,
                                   device=device)
 
-    loss = 0
+    generated_tensor = torch.zeros([batch_size, target_length], dtype=torch.int64)
+
+    ########################################
+    #                                      #
+    #  Generate (Translate) OCR Sequences  #
+    #                                      #
+    ########################################
 
     for ei in range(input_length):
-
-        import pdb
-        pdb.set_trace()
 
         generator_output, generator_hidden, generator_cell = \
             generator(input_tensor[ei], generator_hidden, generator_cell)
 
         #encoder_outputs[ei] = encoder_output[0, 0]
         # Adjustment batch_size > 1; needs to be checked
-        for bi in range(batch_size):
-            generator_outputs[bi, ei] = generator_output[bi, 0]
+        #for bi in range(batch_size):
+        #    generator_outputs[bi, ei] = generator_output[bi, 0]
+
+        topv, topi = generator_output.data.topk(1)
+
+        generated_tensor[:, ei] = topi.squeeze(1)
+
+    #########################
+    #                       #
+    #  Train Discriminator  #
+    #                       #
+    #########################
+
+    # 1. Train with target data (GT)
+    d_real = discriminator(target_tensor)
+    d_real_loss = real_loss(d_real, criterion, smooth=True)
+
+    # 2. Train with generated data (translated OCR)
+    d_fake = discriminator(generated_tensor)
+    d_fake_loss = fake_loss(d_fake, criterion)
+
+    d_loss = d_real_loss + d_fake_loss
 
     ###################
     #                 #
-    #  Decoding Step  #
+    # Train Generator #
     #                 #
     ###################
 
-    # Create input tensor with SOS encoding
-    #decoder_input = torch.tensor([[input_tensor[0]]], device=device)
-
-    decoder_input = input_tensor[0].clone().detach()
-
-    decoder_hidden = encoder_hidden
-
-    # Is this correct? (Alternative: initialize cell state to 0)
-    decoder_cell = encoder_cell
-
-    use_teacher_forcing = True if \
-        random.random() < teacher_forcing_ratio else False
-
-    if with_attention:
-        if use_teacher_forcing:
-            # Teacher forcing: Feed the target as the next input
-            for di in range(target_length):
-                decoder_output, decoder_hidden, decoder_cell, \
-                    decoder_attention = decoder(decoder_input,
-                                                decoder_hidden,
-                                                decoder_cell,
-                                                encoder_outputs)
-
-                #import pdb; pdb.set_trace()
-
-                loss += criterion(decoder_output, target_tensor[di])
-
-                # Teacher forcing
-                decoder_input = target_tensor[di]
-        else:
-            for di in range(target_length):
-                decoder_output, decoder_hidden, decoder_cell, \
-                    decoder_attention = decoder(decoder_input,
-                                                decoder_hidden,
-                                                decoder_cell,
-                                                encoder_outputs)
-
-                topv, topi = decoder_output.topk(1)
-                decoder_input = topi.squeeze().detach()
-
-                #import pdb; pdb.set_trace()
-
-                loss += criterion(decoder_output, target_tensor[di])
-    else:
-        if use_teacher_forcing:
-            # Teacher forcing: Feed the target as the next input
-            for di in range(target_length):
-                decoder_output, decoder_hidden, \
-                    decoder_cell = decoder(decoder_input,
-                                           decoder_hidden,
-                                           decoder_cell)
-
-                loss += criterion(decoder_output, target_tensor[di])
-                decoder_input = target_tensor[di]  # Teacher forcing
-        else:
-
-            for di in range(target_length):
-
-                decoder_output, decoder_hidden, decoder_cell = \
-                    decoder(decoder_input, decoder_hidden, decoder_cell)
-
-                topv, topi = decoder_output.topk(1)
-                decoder_input = topi.squeeze().detach()
-
-                loss += criterion(decoder_output, target_tensor[di])
-
-                # Change hard coding (EOS token)
-                #if decoder_input.item() == 2:
-                #    break
+    # note the loss flip with respect to the training step of the discriminator
+    g_loss = real_loss(d_fake, criterion)
 
     ###############################
     #                             #
@@ -317,12 +270,13 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                             #
     ###############################
 
-    loss.backward()
+    g_loss.backward(retain_graph=True)
+    d_loss.backward(retain_graph=True)
 
-    encoder_optimizer.step()
-    decoder_optimizer.step()
+    generator_optimizer.step()
+    discriminator_optimizer.step()
 
-    return loss.item() / target_length
+    return g_loss.item(), d_loss.item()
 
 def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
                n_epochs, batch_size, learning_rate, print_every=5,
@@ -351,19 +305,23 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
     start = time.time()
 
     plot_losses = []
-    print_loss_total = 0  # Reset every print_every
-    plot_loss_total = 0  # Reset every plot_every
+    print_g_loss_total = 0  # Reset every print_every
+    print_d_loss_total = 0
+    plot_g_loss_total = 0  # Reset every plot_every
+    plot_d_loss_total = 0
 
     generator_optimizer = optim.AdamW(generator.parameters(), lr=learning_rate)
     discriminator_optimizer = optim.AdamW(discriminator.parameters(), lr=learning_rate)
 
-    criterion = nn.NLLLoss()
+    criterion = nn.BCEWithLogitsLoss()
 
-    loss_dict = {}
+    g_loss_dict = {}
+    d_loss_dict = {}
 
     for epoch in range(1, n_epochs + 1):
 
-        loss_list = []
+        g_loss_list = []
+        d_loss_list = []
 
         for batch in DataLoader(data_train, batch_size=batch_size):
 
@@ -375,17 +333,19 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
 
             #import pdb; pdb.set_trace()
 
-            loss = train_gan(input_tensor, target_tensor, generator,
+            g_loss, d_loss = train_gan(input_tensor, target_tensor, generator,
                         discriminator, generator_optimizer,
                         discriminator_optimizer, criterion,
                         teacher_forcing_ratio, device)
 
-            loss_list.append(loss)
+            g_loss_list.append(g_loss)
+            d_loss_list.append(d_loss)
 
-            print_loss_total += loss
-            plot_loss_total += loss
+            print_g_loss_total += g_loss
+            plot_d_loss_total += d_loss
 
-        loss_dict[epoch] = loss_list
+        g_loss_dict[epoch] = g_loss_list
+        d_loss_dict[epoch] = d_loss_list
 
         if epoch % save_every == 0:
             root, ext = os.path.splitext(model_path)
@@ -396,9 +356,14 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
                 'generator_optimizer': generator_optimizer.state_dict(),
                 'discriminator_optimizer': discriminator_optimizer.state_dict()
                 }, epoch_path)
-            with io.open(loss_path, mode='w') as loss_file:
-                json.dump(loss_dict, loss_file)
 
+            # TODO: loss path has to be defined for both loss objects
+            with io.open(loss_path, mode='w') as loss_file:
+                json.dump(g_loss_dict, loss_file)
+            with io.open(loss_path, mode='w') as loss_file:
+                json.dump(d_loss_dict, loss_file)
+
+        # TODO: print statements have to be defined for both loss statements
         if epoch % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
@@ -470,8 +435,7 @@ def train_seq2seq(input_tensor, target_tensor, encoder, decoder,
 
     for ei in range(input_length):
 
-        # import pdb
-        # pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
         encoder_output, encoder_hidden, encoder_cell = \
             encoder(input_tensor[ei], encoder_hidden, encoder_cell)
@@ -501,6 +465,7 @@ def train_seq2seq(input_tensor, target_tensor, encoder, decoder,
         random.random() < teacher_forcing_ratio else False
 
     if with_attention:
+
         if use_teacher_forcing:
             # Teacher forcing: Feed the target as the next input
             for di in range(target_length):
@@ -510,12 +475,12 @@ def train_seq2seq(input_tensor, target_tensor, encoder, decoder,
                                                 decoder_cell,
                                                 encoder_outputs)
 
-                #import pdb; pdb.set_trace()
 
                 loss += criterion(decoder_output, target_tensor[di])
 
                 # Teacher forcing
                 decoder_input = target_tensor[di]
+
         else:
             for di in range(target_length):
                 decoder_output, decoder_hidden, decoder_cell, \
@@ -620,16 +585,16 @@ def train_iters_seq2seq(model_path, loss_path, data_train, encoder, decoder,
             target_tensor = batch[:, 1, :].to(device)
             target_tensor = torch.t(target_tensor)
 
-            loss = train(input_tensor,
-                         target_tensor,
-                         encoder,
-                         decoder,
-                         encoder_optimizer,
-                         decoder_optimizer,
-                         criterion,
-                         with_attention,
-                         teacher_forcing_ratio,
-                         device)
+            loss = train_seq2seq(input_tensor,
+                        target_tensor,
+                        encoder,
+                        decoder,
+                        encoder_optimizer,
+                        decoder_optimizer,
+                        criterion,
+                        with_attention,
+                        teacher_forcing_ratio,
+                        device)
 
             loss_list.append(loss)
 
