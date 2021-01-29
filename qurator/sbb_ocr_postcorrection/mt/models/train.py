@@ -217,7 +217,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
                                   generator.output_size,
                                   device=device)
 
-    generated_tensor = torch.zeros([batch_size, target_length], dtype=torch.int64)
+    generated_tensor = torch.zeros([batch_size, target_length], dtype=torch.int64, device=device)
 
     ########################################
     #                                      #
