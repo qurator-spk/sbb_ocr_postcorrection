@@ -72,27 +72,27 @@ class Generator(nn.Module):
         else:
             return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
 
-def real_loss(d_logits, criterion, smooth=False):
+def real_loss(d_logits, criterion, smooth=False, device='cpu'):
     '''
     Taken from: https://github.com/udacity/deep-learning-v2-pytorch/tree/master/gan-mnist
     '''
     size = d_logits.shape
 
     if smooth:
-        labels = torch.ones(size)*0.9
+        labels = torch.ones(size, device=device)*0.9
     else:
-        labels = torch.ones(size)
+        labels = torch.ones(size, device=device)
 
     loss = criterion(d_logits, labels)
     return loss
 
-def fake_loss(d_logits, criterion):
+def fake_loss(d_logits, criterion, device='cpu'):
     '''
     Taken from: https://github.com/udacity/deep-learning-v2-pytorch/tree/master/gan-mnist
     '''
     size = d_logits.shape
 
-    labels = torch.zeros(size)
+    labels = torch.zeros(size, device=device)
 
     loss = criterion(d_logits, labels)
     return loss
