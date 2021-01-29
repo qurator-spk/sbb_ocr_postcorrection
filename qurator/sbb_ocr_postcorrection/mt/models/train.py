@@ -357,9 +357,9 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
                 'discriminator_optimizer': discriminator_optimizer.state_dict()
                 }, epoch_path)
 
-            with io.open(os.path.join(loss_path, 'g_loss.json'), mode='w') as loss_file:
+            with io.open(loss_path, mode='w') as loss_file:
                 json.dump(g_loss_dict, loss_file)
-            with io.open(os.path.join(loss_path, 'd_loss.json'), mode='w') as loss_file:
+            with io.open(loss_path, mode='w') as loss_file:
                 json.dump(d_loss_dict, loss_file)
 
         # TODO: print statements have to be defined for both loss statements
