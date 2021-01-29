@@ -1041,7 +1041,7 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
         }, model_out_dir)
 
     elif approach == 'gan':
-        generator = Generator(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device='cpu')
+        generator = Generator(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
         discriminator = Discriminator(input_size, hidden_size, output_size)
 
         trained_generator, trained_discriminator, generator_optimizer, \
