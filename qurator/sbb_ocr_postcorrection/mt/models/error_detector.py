@@ -21,7 +21,7 @@ class DetectorLSTM(nn.Module):
         device (str) -- the device used for training (default: 'cpu')
         '''
 
-        super(detectorLSTM, self).__init__()
+        super(DetectorLSTM, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -85,7 +85,7 @@ class DetectorGRU(nn.Module):
         device (str) -- the device used for training (default: 'cpu')
         '''
 
-        super(detectorGRU, self).__init__()
+        super(DetectorGRU, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
