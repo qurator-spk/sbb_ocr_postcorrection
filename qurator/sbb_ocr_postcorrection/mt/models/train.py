@@ -357,28 +357,36 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
                 'discriminator_optimizer': discriminator_optimizer.state_dict()
                 }, epoch_path)
 
-            # TODO: loss path has to be defined for both loss objects
-            with io.open(loss_path, mode='w') as loss_file:
+            with io.open(os.path.join(loss_path, 'g_loss.json'), mode='w') as loss_file:
                 json.dump(g_loss_dict, loss_file)
-            with io.open(loss_path, mode='w') as loss_file:
+            with io.open(os.path.join(loss_path, 'd_loss.json'), mode='w') as loss_file:
                 json.dump(d_loss_dict, loss_file)
 
         # TODO: print statements have to be defined for both loss statements
         if epoch % print_every == 0:
-            print_loss_avg = print_loss_total / print_every
-            print_loss_total = 0
+            print_g_loss_avg = print_g_loss_total / print_every
+            print_g_loss_total = 0
             print('{:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
                                                               epoch/n_epochs),
                                                     epoch,
                                                     int(epoch/n_epochs*100),
-                                                    print_loss_avg))
+                                                    print_g_loss_avg))
 
-        if epoch % plot_every == 0:
-            plot_loss_avg = plot_loss_total / plot_every
-            plot_losses.append(plot_loss_avg)
-            plot_loss_total = 0
+        if epoch % print_every == 0:
+            print_d_loss_avg = print_d_loss_total / print_every
+            print_d_loss_total = 0
+            print('{:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
+                                                              epoch/n_epochs),
+                                                    epoch,
+                                                    int(epoch/n_epochs*100),
+                                                    print_d_loss_avg))
 
-    showPlot(plot_losses)
+        #if epoch % plot_every == 0:
+        #    plot_loss_avg = plot_loss_total / plot_every
+        #    plot_losses.append(plot_loss_avg)
+        #    plot_loss_total = 0
+
+    #showPlot(plot_losses)
 
     return generator, discriminator, generator_optimizer, discriminator_optimizer
 
