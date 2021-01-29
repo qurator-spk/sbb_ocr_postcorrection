@@ -247,11 +247,11 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
 
     # 1. Train with target data (GT)
     d_real = discriminator(target_tensor)
-    d_real_loss = real_loss(d_real, criterion, smooth=True)
+    d_real_loss = real_loss(d_real, criterion, smooth=True, device=device)
 
     # 2. Train with generated data (translated OCR)
     d_fake = discriminator(generated_tensor)
-    d_fake_loss = fake_loss(d_fake, criterion)
+    d_fake_loss = fake_loss(d_fake, criterion, device=device)
 
     d_loss = d_real_loss + d_fake_loss
 
@@ -262,7 +262,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     ###################
 
     # note the loss flip with respect to the training step of the discriminator
-    g_loss = real_loss(d_fake, criterion)
+    g_loss = real_loss(d_fake, criterion, device=device)
 
     ###############################
     #                             #
