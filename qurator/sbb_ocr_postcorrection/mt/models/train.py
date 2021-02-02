@@ -217,7 +217,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
                                   generator.output_size,
                                   device=device)
 
-    generated_tensor = torch.zeros([batch_size, target_length], dtype=torch.int64, device=device)
+    generated_tensor_g = torch.zeros([batch_size, target_length], dtype=torch.int64, device=device)
 
     ########################################
     #                                      #
@@ -237,7 +237,9 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
 
         topv, topi = generator_output.data.topk(1)
 
-        generated_tensor[:, ei] = topi.squeeze(1)
+        generated_tensor_g[:, ei] = topi.squeeze(1)
+
+    generated_tensor_d = generated_tensor_g.detach().clone()
 
     #########################
     #                       #
@@ -250,8 +252,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     d_real_loss = real_loss(d_real, criterion, smooth=True, device=device)
 
     # 2. Train with generated data (translated OCR)
-    d_fake = discriminator(generated_tensor)
-    d_fake_loss = fake_loss(d_fake, criterion, device=device)
+    d_fake_d = discriminator(generated_tensor_d)
+    d_fake_loss = fake_loss(d_fake_d, criterion, device=device)
 
     d_loss = d_real_loss + d_fake_loss
 
@@ -262,7 +264,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     ###################
 
     # note the loss flip with respect to the training step of the discriminator
-    g_loss = real_loss(d_fake, criterion, device=device)
+    d_fake_g = discriminator(generated_tensor_g)
+    g_loss = real_loss(d_fake_g, criterion, device=device)
 
     ###############################
     #                             #
@@ -270,8 +273,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                             #
     ###############################
 
-    g_loss.backward(retain_graph=True)
-    d_loss.backward(retain_graph=True)
+    g_loss.backward()
+    d_loss.backward()
 
     generator_optimizer.step()
     discriminator_optimizer.step()
@@ -366,20 +369,20 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
         if epoch % print_every == 0:
             print_g_loss_avg = print_g_loss_total / print_every
             print_g_loss_total = 0
-            print('{:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
+            print('Generator: {:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
                                                               epoch/n_epochs),
-                                                    epoch,
-                                                    int(epoch/n_epochs*100),
-                                                    print_g_loss_avg))
+                                                              epoch,
+                                                              int(epoch/n_epochs*100),
+                                                              print_g_loss_avg))
 
         if epoch % print_every == 0:
             print_d_loss_avg = print_d_loss_total / print_every
             print_d_loss_total = 0
-            print('{:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
+            print('Discriminator: {:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
                                                               epoch/n_epochs),
-                                                    epoch,
-                                                    int(epoch/n_epochs*100),
-                                                    print_d_loss_avg))
+                                                              epoch,
+                                                              int(epoch/n_epochs*100),
+                                                              print_d_loss_avg))
 
         #if epoch % plot_every == 0:
         #    plot_loss_avg = plot_loss_total / plot_every
