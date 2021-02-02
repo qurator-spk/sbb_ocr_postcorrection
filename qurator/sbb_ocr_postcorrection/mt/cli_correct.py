@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import click
+from datetime import date
 import io
 import json
 import numpy as np
@@ -916,7 +917,7 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
 @click.command()
 @click.argument('ocr-dir', type=click.Path(exists=True))
 @click.argument('gt-dir', type=click.Path(exists=True))
-@click.argument('model-out-dir', type=click.Path(exists=True))
+@click.argument('model-out-dir')
 @click.argument('token-to-code-dir', type=click.Path(exists=True)) #only needed for encoding_size; maybe find alternative
 @click.option('--approach', default='seq2seq', help='The OCR post-correction approach ("seq2seq" or "gan").')
 @click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture. (default: 512)')
@@ -941,11 +942,21 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
     token-to-code-dir -- The absolute path to the token-encoding mapping
     '''
 
-    out_dir, model_file = os.path.split(model_out_dir)
-    model_file, model_ext = os.path.splitext(model_file)
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    gt_dir = os.path.abspath(gt_dir)
+    model_out_dir = os.path.abspath(model_out_dir)
+    token_to_code_dir = os.path.abspath(token_to_code_dir)
 
-    loss_dir = os.path.join(out_dir, 'losses_'+model_file+'.json')
-    hyper_params_dir = os.path.join(out_dir, 'hyper_params'+model_file+'.json')
+    if not os.path.isdir(model_out_dir):
+        os.mkdir(model_out_dir)
+
+    today = date.today()
+    model_name = 'translator_' + today.strftime("%d%m%y")
+
+    model_dir = os.path.join(model_out_dir, model_name+'.pt')
+    loss_dir = os.path.join(model_out_dir, 'losses_'+model_name+'.json')
+    hyper_params_dir = os.path.join(model_out_dir, 'hyperparams_'+model_name+'.json')
 
     print('\n1. LOAD DATA (ALIGNMENTS, ENCODINGS, ENCODING MAPPINGS)')
 
@@ -961,6 +972,8 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     with io.open(token_to_code_dir, mode='r') as f_in:
         token_to_code_mapping = json.load(f_in)
+
+    import pdb; pdb.set_trace()
 
     print('OCR encoding dimensions: {}'.format(ocr_encodings.shape))
     print('GT encoding dimensions: {}'.format(gt_encodings.shape))
@@ -1023,7 +1036,7 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
         print('\n4. TRAIN MODEL')
         trained_encoder, trained_decoder, encoder_optimizer, decoder_optimizer \
-            = train_iters_seq2seq(model_out_dir, loss_dir, training_set,
+            = train_iters_seq2seq(model_dir, loss_dir, training_set,
                         encoder, decoder, n_epochs=n_epochs,
                         batch_size=batch_size, learning_rate=lr,
                         with_attention=attention, plot_every=5, print_every=1,
@@ -1031,34 +1044,34 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
                         device=device)
 
         root, ext = os.path.splitext(model_out_dir)
-        model_out_dir = root + '_final' + ext
+        model_final_out_dir = root + '_final' + ext
 
         torch.save({
             'trained_encoder': trained_encoder.state_dict(),
             'trained_decoder': trained_decoder.state_dict(),
             'encoder_optimizer': encoder_optimizer.state_dict(),
             'decoder_optimizer': decoder_optimizer.state_dict()
-        }, model_out_dir)
+        }, model_final_out_dir)
 
     elif approach == 'gan':
         generator = Generator(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
         discriminator = Discriminator(input_size, hidden_size, output_size).to(device)
 
         trained_generator, trained_discriminator, generator_optimizer, \
-            discriminator_optimizer = train_iters_gan(model_out_dir, loss_dir,
+            discriminator_optimizer = train_iters_gan(model_dir, loss_dir,
                 training_set, generator, discriminator, n_epochs=n_epochs,
                 batch_size=batch_size, learning_rate=lr, plot_every=5,
                 print_every=1, save_every=2,
                 teacher_forcing_ratio=teacher_ratio, device=device)
 
-        root, ext = os.path.splitext(model_out_dir)
-        model_out_dir = root + '_final' + ext
+        root, ext = os.path.splitext(model_dir)
+        model_dir = root + '_final' + ext
 
         torch.save({
             'trained_generator': trained_generator.state_dict(),
             'trained_discriminator': trained_discriminator.state_dict(),
             'generator_optimizer': generator_optimizer.state_dict(),
             'discriminator_optimizer': discriminator_optimizer.state_dict()
-        }, model_out_dir)
+        }, model_dir)
     else:
         print('NOTE: OCR Post-Correction approach must be either "seq2seq" or "gan".')
