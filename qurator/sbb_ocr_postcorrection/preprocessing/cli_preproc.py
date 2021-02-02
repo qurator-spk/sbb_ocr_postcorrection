@@ -40,6 +40,11 @@ def align_sequences(ocr_dir, gt_dir, out_dir):
     out-dir -- The absolute path to the aligned seq json file.
     '''
 
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    gt_dir = os.path.abspath(gt_dir)
+    out_dir = os.path.abspath(out_dir)
+
     print_doc_stats = True
     print_page_stats = False
 
@@ -141,6 +146,10 @@ def apply_sliding_window(in_dir, out_dir):
 
     # START: script
 
+    # make paths absolute
+    in_dir = os.path.abspath(in_dir)
+    out_dir = os.path.abspath(out_dir)
+
     with io.open(in_dir, mode='r') as f_in:
         aligned_corpus = json.load(f_in)
 
@@ -192,6 +201,15 @@ def create_detector_targets(training_dir, validation_dir, testing_dir,
     '''
     Needs to checked!!!
     '''
+
+    # make paths absolute
+    training_dir = os.path.abspath(training_dir)
+    validation_dir = os.path.abspath(validation_dir)
+    testing_dir = os.path.abspath(testing_dir)
+    training_target_dir = os.path.abspath(training_target_dir)
+    validation_target_dir = os.path.abspath(validation_target_dir)
+    testing_target_dir = os.path.abspath(testing_target_dir)
+
     max_wordpiece_length = 1
 
     if max_wordpiece_length > 1:
@@ -371,6 +389,10 @@ def filter_language(in_dir, out_dir, target_lang):
     out-dir -- The absolute path to the filtered data (DB)
     '''
 
+    # make paths absolute
+    in_dir = os.path.abspath(in_dir)
+    out_dir = os.path.abspath(out_dir)
+
     with io.open(in_dir, mode='r') as f_in:
         aligned_corpus = json.load(f_in)
 
@@ -458,6 +480,11 @@ def parse_xml(ocr_dir, gt_dir, out_dir):
     gt-dir -- GT root path
     out-dir -- The directory of the output json
     '''
+
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    gt_dir = os.path.abspath(gt_dir)
+    out_dir = os.path.abspath(out_dir)
 
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
@@ -550,6 +577,10 @@ def split_dataset(in_dir, out_dir, training_proportion):
     in-dir -- Input database
     out-dir -- Path to output databases
     '''
+
+    # make paths absolute
+    in_dir = os.path.abspath(in_dir)
+    out_dir = os.path.abspath(out_dir)
 
     training_dir = os.path.join(out_dir, 'training_set.db')
     testing_dir = os.path.join(out_dir, 'testing_set.db')
@@ -1043,6 +1074,10 @@ def split_dataset_sliding_window(in_dir, out_dir, seed):
     '''
 
     random.seed(seed)
+
+    # make paths absolute
+    in_dir = os.path.abspath(in_dir)
+    out_dir = os.path.abspath(out_dir)
 
     training_dir = os.path.join(out_dir, 'training_set_sliding_window.db')
     testing_dir = os.path.join(out_dir, 'testing_set_sliding_window.db')

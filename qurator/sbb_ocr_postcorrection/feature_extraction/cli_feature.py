@@ -31,6 +31,10 @@ def create_encoding_mapping(training_dir, testing_dir, validation_dir,
 
 #    add_another_charge = True
 
+    # make paths absolute
+    training_dir = os.path.abspath(training_dir)
+    testing_dir = os.path.abspath(testing_dir)
+    validation_dir = os.path.abspath(validation_dir)
 
     training_data, _, _ = load_alignments_from_sqlite(training_dir)
     testing_data, _, _ = load_alignments_from_sqlite(testing_dir)
@@ -87,6 +91,14 @@ def encode_features(training_dir, testing_dir, testing_small_dir, validation_dir
     token-to-code-dir --
     out-dir --
     '''
+
+    # make paths absolute
+    training_dir = os.path.abspath(training_dir)
+    testing_dir = os.path.abspath(testing_dir)
+    testing_small_dir = os.path.abspath(testing_small_dir)
+    validation_dir = os.path.abspath(validation_dir)
+    token_to_code_dir = os.path.abspath(token_to_code_dir)
+    out_dir = os.path.abspath(out_dir)
 
     encoded_training_ocr_dir = os.path.join(out_dir, 'encoded_training_ocr.npy')
     encoded_training_gt_dir = os.path.join(out_dir, 'encoded_training_gt.npy')
@@ -307,6 +319,14 @@ def encode_features_hack(ocr_incorrect_dir, gt_incorrect_dir, ocr_correct_dir,
     token-to-code-dir --
     out-dir --
     '''
+
+    # make paths absolute
+    ocr_incorrect_dir = os.path.abspath(ocr_incorrect_dir)
+    gt_incorrect_dir = os.path.abspath(gt_incorrect_dir)
+    ocr_correct_dir = os.path.abspath(ocr_correct_dir)
+    gt_correct_dir = os.path.abspath(gt_correct_dir)
+    token_to_code_dir = os.path.abspath(token_to_code_dir)
+    out_dir = os.path.abspath(out_dir)
 
     ocr_incorrect_encoded_dir = os.path.join(out_dir, 'encoded_incorrect_ocr.npy')
     gt_incorrect_encoded_dir = os.path.join(out_dir, 'encoded_incorrect_gt.npy')
