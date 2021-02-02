@@ -973,8 +973,6 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
     with io.open(token_to_code_dir, mode='r') as f_in:
         token_to_code_mapping = json.load(f_in)
 
-    import pdb; pdb.set_trace()
-
     print('OCR encoding dimensions: {}'.format(ocr_encodings.shape))
     print('GT encoding dimensions: {}'.format(gt_encodings.shape))
 
