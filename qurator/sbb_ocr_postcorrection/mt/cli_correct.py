@@ -39,6 +39,13 @@ def detect_errors(ocr_dir, targets_dir, targets_char_dir, error_pred_dir):
     targets-char-dir --
     error-pred-dir --
     '''
+
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    targets_dir = os.path.abspath(targets_dir)
+    targets_char_dir = os.path.abspath(targets_char_dir)
+    error_pred_dir = os.path.abspath(error_pred_dir)
+
     print('\n1. LOAD DATA (TARGETS, ERROR PREDICTIONS)')
 
     targets_testing = np.load(targets_testing_path)
@@ -182,6 +189,19 @@ def evaluate_detector(ocr_dir, targets_dir, pred_dir, gt_dir, hyper_params_dir,
     targets-sent-dir --
     targets-nopad-dir --
     '''
+
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    targets_dir = os.path.abspath(targets_dir)
+    pred_dir = os.path.abspath(pred_dir)
+    gt_dir = os.path.abspath(gt_dir)
+    hyper_params_dir = os.path.abspath(hyper_params_dir)
+    pred_arr_dir = os.path.abspath(pred_arr_dir)
+    pred_sent_dir = os.path.abspath(pred_sent_dir)
+    pred_nopad_dir = os.path.abspath(pred_nopad_dir)
+    targets_arr_dir = os.path.abspath(targets_arr_dir)
+    targets_sent_dir = os.path.abspath(targets_sent_dir)
+    targets_nopad_dir = os.path.abspath(targets_nopad_dir)
 
     print('\n1. LOAD DATA (TARGETS, ERROR PREDICTIONS)')
 
@@ -453,6 +473,9 @@ def evaluate_loss(loss_dir):
     loss-dir --
     '''
 
+    # make paths absolute
+    loss_dir = os.path.abspath(loss_dir)
+
     with io.open(loss_dir, mode='r') as f_in:
         losses = json.load(f_in)
 
@@ -481,6 +504,12 @@ def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir):
     ocr-dir --
     gt-dir --
     '''
+
+    # make paths absolute
+    align_dir = os.path.abspath(align_dir)
+    pred_dir = os.path.abspath(pred_dir)
+    ocr_dir = os.path.abspath(ocr_dir)
+    gt_dir = os.path.abspath(gt_dir)
 
     alignments, alignments_as_df, alignments_headers = load_alignments_from_sqlite(alignments_path, size='total')
 
@@ -578,6 +607,13 @@ def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, pred_dir):
     pred-dir --
     '''
 
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    gt_dir = os.path.abspath(gt_dir)
+    targets_dir = os.path.abspath(targets_dir)
+    model_dir = os.path.abspath(model_dir)
+    pred_dir = os.path.abspath(pred_dir)
+
     in_dir, model_file = os.path.split(model_dir)
     model_file, model_ext = os.path.splitext(model_file)
 
@@ -671,6 +707,14 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
     code-to-token-dir --
     out-dir --
     '''
+
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    gt_dir = os.path.abspath(gt_dir)
+    model_dir = os.path.abspath(model_dir)
+    hyper_params_dir = os.path.abspath(hyper_params_dir)
+    code_to_token_dir = os.path.abspath(code_to_token_dir)
+    out_dir = os.path.abspath(out_dir)
 
     ocr_sequences_dir = os.path.join(out_dir, 'ocr_sequences.npy')
     decoded_sequences_dir = os.path.join(out_dir, 'decoded_sequences.pkl')
@@ -811,6 +855,13 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
     model-out-dir -- The absolute path for the trained models
     token-to-code-dir -- The absolute path to the token-encoding mapping
     '''
+
+    # make paths absolute
+    ocr_dir = os.path.abspath(ocr_dir)
+    gt_dir = os.path.abspath(gt_dir)
+    targets_dir = os.path.abspath(targets_dir)
+    model_out_dir = os.path.abspath(model_out_dir)
+    token_to_code_dir = os.path.abspath(token_to_code_dir)
 
     out_dir, model_file = os.path.split(model_out_dir)
     model_file, model_ext = os.path.splitext(model_file)
