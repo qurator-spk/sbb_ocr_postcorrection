@@ -345,7 +345,7 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
             d_loss_list.append(d_loss)
 
             print_g_loss_total += g_loss
-            plot_d_loss_total += d_loss
+            print_d_loss_total += d_loss
 
         g_loss_dict[epoch] = g_loss_list
         d_loss_dict[epoch] = d_loss_list
