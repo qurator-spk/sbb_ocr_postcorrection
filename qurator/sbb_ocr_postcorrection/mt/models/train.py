@@ -247,6 +247,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                       #
     #########################
 
+    target_tensor = torch.t(target_tensor)
+
     # 1. Train with target data (GT)
     d_real = discriminator(target_tensor)
     d_real_loss = real_loss(d_real, criterion, smooth=True, device=device)
