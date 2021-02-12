@@ -6,6 +6,8 @@ class DiscriminatorLinear(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, dropout_prob=0):
         super(DiscriminatorLinear, self).__init__()
 
+        self.model_type = 'linear'
+
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
@@ -45,6 +47,8 @@ class DiscriminatorLSTM(nn.Module):
         '''
 
         super(DiscriminatorLSTM, self).__init__()
+
+        self.model_type = 'lstm'
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -91,6 +95,8 @@ class DiscriminatorLSTM(nn.Module):
 class GeneratorLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, batch_size, num_layers=1, bidirectional=False, dropout=0, activation='softmax', device='cpu'):
         super(GeneratorLSTM, self).__init__()
+
+        self.model_type = 'lstm'
 
         self.input_size = input_size
         self.hidden_size = hidden_size
