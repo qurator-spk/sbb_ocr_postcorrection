@@ -263,7 +263,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
         discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
             discriminator(target_tensor[ei], discriminator_hidden, discriminator_cell)
 
-        d_real_loss += real_loss(discriminator_output, criterion, smooth=True, device=device)
+        # smooth should be true
+        d_real_loss += real_loss(discriminator_output, criterion, smooth=False, device=device)
 
     discriminator_hidden = discriminator.init_hidden_state()
     discriminator_cell = discriminator.init_cell_state()
