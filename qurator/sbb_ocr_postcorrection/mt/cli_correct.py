@@ -1104,7 +1104,7 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     elif approach == 'gan':
         generator = GeneratorLSTM(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
-        discriminator = DiscriminatorLinear(input_size, hidden_size, output_size).to(device)
+        discriminator = DiscriminatorLSTM(input_size, hidden_size, output_size, batch_size).to(device)
 
         trained_generator, trained_discriminator, generator_optimizer, \
             discriminator_optimizer = train_iters_gan(model_dir, loss_dir,
