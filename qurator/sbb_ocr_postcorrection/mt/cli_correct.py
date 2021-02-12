@@ -1041,6 +1041,7 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     input_size = encoding_size
     output_size = input_size
+    output_size_discriminator = 2
     print('Input - Hidden - Output: {} - {} - {}'.format(input_size, hidden_size, output_size))
     seq_length = training_set[0].shape[-1]
     print('Sequence Length: {}'.format(seq_length))
@@ -1104,7 +1105,7 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     elif approach == 'gan':
         generator = GeneratorLSTM(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
-        discriminator = DiscriminatorLSTM(input_size, hidden_size, output_size, batch_size, device=device).to(device)
+        discriminator = DiscriminatorLSTM(input_size, hidden_size, output_size_discriminator, batch_size, device=device).to(device)
 
         trained_generator, trained_discriminator, generator_optimizer, \
             discriminator_optimizer = train_iters_gan(model_dir, loss_dir,
