@@ -362,7 +362,7 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
     generator_optimizer = optim.AdamW(generator.parameters(), lr=learning_rate)
     discriminator_optimizer = optim.AdamW(discriminator.parameters(), lr=learning_rate)
 
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.NLLLoss() #nn.BCEWithLogitsLoss()
 
     g_loss_dict = {}
     d_loss_dict = {}
