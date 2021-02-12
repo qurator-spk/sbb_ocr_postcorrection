@@ -247,17 +247,47 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                       #
     #########################
 
-    target_tensor = torch.t(target_tensor)
+    #target_tensor = torch.t(target_tensor)
+    generated_tensor_d = torch.t(generated_tensor_d)
+
+    discriminator_hidden = discriminator.init_hidden_state()
+    discriminator_cell = discriminator.init_cell_state()
 
     # 1. Train with target data (GT)
-    d_real = discriminator(target_tensor)
-    d_real_loss = real_loss(d_real, criterion, smooth=True, device=device)
 
-    # 2. Train with generated data (translated OCR)
-    d_fake_d = discriminator(generated_tensor_d)
-    d_fake_loss = fake_loss(d_fake_d, criterion, device=device)
+    d_real_loss = 0
+    d_fake_loss = 0
+
+
+    for ei in range(input_length):
+        discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
+            discriminator(target_tensor[ei], discriminator_hidden, discriminator_cell)
+
+        d_real_loss += real_loss(discriminator_output, criterion, smooth=True, device=device)
+
+    discriminator_hidden = discriminator.init_hidden_state()
+    discriminator_cell = discriminator.init_cell_state()
+
+    for ei in range(input_length):
+        discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
+            discriminator(generated_tensor_d[ei], discriminator_hidden,
+                            discriminator_cell)
+
+        d_fake_loss += fake_loss(discriminator_output, criterion, device=device)
 
     d_loss = d_real_loss + d_fake_loss
+
+    #target_tensor = torch.t(target_tensor)
+
+    ## 1. Train with target data (GT)
+    #d_real = discriminator(target_tensor)
+    #d_real_loss = real_loss(d_real, criterion, smooth=True, device=device)
+
+    ## 2. Train with generated data (translated OCR)
+    #d_fake_d = discriminator(generated_tensor_d)
+    #d_fake_loss = fake_loss(d_fake_d, criterion, device=device)
+
+    #d_loss = d_real_loss + d_fake_loss
 
     ###################
     #                 #
@@ -265,9 +295,23 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                 #
     ###################
 
-    # note the loss flip with respect to the training step of the discriminator
-    d_fake_g = discriminator(generated_tensor_g)
-    g_loss = real_loss(d_fake_g, criterion, device=device)
+    generated_tensor_g = torch.t(generated_tensor_g)
+
+    g_loss = 0
+
+    discriminator_hidden = discriminator.init_hidden_state()
+    discriminator_cell = discriminator.init_cell_state()
+
+    for ei in range(input_length):
+        discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
+            discriminator(generated_tensor_g[ei], discriminator_hidden,
+                            discriminator_cell)
+
+        g_loss += real_loss(discriminator_output, criterion, device=device)
+
+    ## note the loss flip with respect to the training step of the discriminator
+    #d_fake_g = discriminator(generated_tensor_g)
+    #g_loss = real_loss(d_fake_g, criterion, device=device)
 
     ###############################
     #                             #
