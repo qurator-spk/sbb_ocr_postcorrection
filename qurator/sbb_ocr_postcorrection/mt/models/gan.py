@@ -150,7 +150,7 @@ def real_loss(d_logits, criterion, smooth=False, device='cpu'):
     if smooth:
         labels = torch.ones(size, device=device)*0.9
     else:
-        labels = torch.ones(size, device=device)
+        labels = torch.ones(size, device=device, dtype=torch.long)
 
     loss = criterion(d_logits, labels)
     return loss
@@ -161,7 +161,7 @@ def fake_loss(d_logits, criterion, device='cpu'):
     '''
     size = d_logits.shape[0]
 
-    labels = torch.zeros(size, device=device)
+    labels = torch.zeros(size, device=device, dtype=torch.long)
 
     loss = criterion(d_logits, labels)
     return loss
