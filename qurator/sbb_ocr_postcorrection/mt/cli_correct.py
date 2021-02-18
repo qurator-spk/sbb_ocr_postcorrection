@@ -1108,7 +1108,7 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
         
         #discriminator = DiscriminatorLSTM(input_size, hidden_size, output_size_discriminator, batch_size, device=device).to(device)
 
-        discriminator = DiscriminatorCNN(input_size=input_size, hidden_size=hidden_size, kernel_size=2, stride=2, padding=1, lrelu_neg_slope=0.2, dropout_prob=0.5)
+        discriminator = DiscriminatorCNN(input_size=input_size, hidden_size=hidden_size, kernel_size=2, stride=2, padding=1, lrelu_neg_slope=0.2, dropout_prob=0.5).to(device)
 
         trained_generator, trained_discriminator, generator_optimizer, \
             discriminator_optimizer = train_iters_gan(model_dir, loss_dir,
