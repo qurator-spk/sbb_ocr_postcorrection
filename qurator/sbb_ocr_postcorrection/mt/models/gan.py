@@ -10,7 +10,7 @@ class DiscriminatorCNN(nn.Module):
                 hidden_size, 
                 filter_sizes=[3,4,5],
                 num_filters=[100, 100, 100],
-                num_classes = 2,                
+                num_classes = 1,                
                 kernel_size=2, 
                 stride=2, 
                 padding=1, 
@@ -24,6 +24,7 @@ class DiscriminatorCNN(nn.Module):
 
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.num_classes = num_classes
         self.kernel_size = kernel_size
         self.stride = stride 
         self.padding = padding
@@ -62,6 +63,9 @@ class DiscriminatorCNN(nn.Module):
         x_fc = torch.cat([x_pool.squeeze(dim=2) for x_pool in x_pool_list], dim=1)
 
         logits = self.fc(self.dropout(x_fc))
+
+        if self.num_classes == 1:
+            logits = logits.squeeze()
         #x = self.conv1(x)
         #x = F.leaky_relu(x, negative_slope=self.lrelu_neg_slope)
     
