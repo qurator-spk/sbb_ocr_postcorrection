@@ -1110,8 +1110,6 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
         discriminator = DiscriminatorCNN(input_size=input_size, hidden_size=hidden_size, kernel_size=2, stride=2, padding=1, lrelu_neg_slope=0.2, dropout_prob=0.5)
 
-        import pdb; pdb.set_trace()
-
         trained_generator, trained_discriminator, generator_optimizer, \
             discriminator_optimizer = train_iters_gan(model_dir, loss_dir,
                 training_set, generator, discriminator, n_epochs=n_epochs,

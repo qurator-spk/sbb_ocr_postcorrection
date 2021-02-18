@@ -50,8 +50,6 @@ class DiscriminatorCNN(nn.Module):
 
     def forward(self, x):
 
-        import pdb; pdb.set_trace()
-
         x = self.embedding(x)
 
         x = x.permute(0,2,1)
