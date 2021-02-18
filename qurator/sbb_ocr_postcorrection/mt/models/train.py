@@ -317,7 +317,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     g_loss = 0
 
     discriminator_output_fake_2 = discriminator(generated_tensor_g)
-    g_loss = real_loss(discriminator_output_fake_2, criterion, device=device)
+    g_loss = real_loss(discriminator_output_fake_2, criterion, smooth=False, device=device)
 
     #discriminator_hidden = discriminator.init_hidden_state()
     #discriminator_cell = discriminator.init_cell_state()
@@ -384,7 +384,7 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
     generator_optimizer = optim.AdamW(generator.parameters(), lr=learning_rate)
     discriminator_optimizer = optim.AdamW(discriminator.parameters(), lr=learning_rate)
 
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.CrossEntropyLoss() #nn.BCEWithLogitsLoss()
 
     g_loss_dict = {}
     d_loss_dict = {}
