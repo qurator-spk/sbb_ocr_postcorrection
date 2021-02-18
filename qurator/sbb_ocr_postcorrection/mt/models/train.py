@@ -312,21 +312,24 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                 #
     ###################
 
-    generated_tensor_g = torch.t(generated_tensor_g)
+    #generated_tensor_g = torch.t(generated_tensor_g)
 
     g_loss = 0
 
-    discriminator_hidden = discriminator.init_hidden_state()
-    discriminator_cell = discriminator.init_cell_state()
+    discriminator_output_fake_2 = discriminator(generated_tensor_g)
+    g_loss = real_loss(discriminator_output_fake_2, criterion, device=device)
 
-    for ei in range(input_length):
-        discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
-            discriminator(generated_tensor_g[ei], discriminator_hidden,
-                            discriminator_cell)
+    #discriminator_hidden = discriminator.init_hidden_state()
+    #discriminator_cell = discriminator.init_cell_state()
 
-        g_loss += real_loss(discriminator_output, criterion, device=device)
+    #for ei in range(input_length):
+    #    discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
+    #        discriminator(generated_tensor_g[ei], discriminator_hidden,
+    #                        discriminator_cell)
 
-    import pdb; pdb.set_trace()
+    #    g_loss += real_loss(discriminator_output, criterion, device=device)
+
+    #import pdb; pdb.set_trace()
 
     ## note the loss flip with respect to the training step of the discriminator
     #d_fake_g = discriminator(generated_tensor_g)
