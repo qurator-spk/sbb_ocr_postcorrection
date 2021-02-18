@@ -238,6 +238,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
         topv, topi = generator_output.data.topk(1)
 
         generated_tensor_g[:, ei] = topi.squeeze(1)
+    
+    import pdb; pdb.set_trace()
 
     generated_tensor_d = generated_tensor_g.detach().clone()
 
@@ -248,33 +250,47 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #########################
 
     #target_tensor = torch.t(target_tensor)
-    generated_tensor_d = torch.t(generated_tensor_d)
+    #generated_tensor_d = torch.t(generated_tensor_d)
 
-    discriminator_hidden = discriminator.init_hidden_state()
-    discriminator_cell = discriminator.init_cell_state()
+    #discriminator_hidden = discriminator.init_hidden_state()
+    #discriminator_cell = discriminator.init_cell_state()
+
+    #import pdb; pdb.set_trace()
 
     # 1. Train with target data (GT)
 
     d_real_loss = 0
     d_fake_loss = 0
 
+    target_tensor = torch.t(target_tensor)
 
-    for ei in range(input_length):
-        discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
-            discriminator(target_tensor[ei], discriminator_hidden, discriminator_cell)
+    discriminator_output_real = discriminator(target_tensor)
+    d_real_loss = real_loss(discriminator_output_real, criterion, smooth=False, device=device)
+    
+    
+    #for ei in range(input_length):
+    #    discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
+    #        discriminator(target_tensor[ei], discriminator_hidden, discriminator_cell)
 
-        # smooth should be true
-        d_real_loss += real_loss(discriminator_output, criterion, smooth=False, device=device)
+    #    # smooth should be true
+    #    d_real_loss += real_loss(discriminator_output, criterion, smooth=False, device=device)
 
-    discriminator_hidden = discriminator.init_hidden_state()
-    discriminator_cell = discriminator.init_cell_state()
+    #import pdb; pdb.set_trace()
 
-    for ei in range(input_length):
-        discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
-            discriminator(generated_tensor_d[ei], discriminator_hidden,
-                            discriminator_cell)
+    #discriminator_hidden = discriminator.init_hidden_state()
+    #discriminator_cell = discriminator.init_cell_state()
 
-        d_fake_loss += fake_loss(discriminator_output, criterion, device=device)
+    discriminator_output_fake = discriminator(generated_tensor_d)
+    d_fake_loss = fake_loss(discriminator_output_fake, criterion, device=device)
+
+    #for ei in range(input_length):
+    #    discriminator_output, discriminator_lstm_output, discriminator_hidden, discriminator_cell = \
+    #        discriminator(generated_tensor_d[ei], discriminator_hidden,
+    #                        discriminator_cell)
+
+    #    d_fake_loss += fake_loss(discriminator_output, criterion, device=device)
+
+    #import pdb; pdb.set_trace()
 
     d_loss = d_real_loss + d_fake_loss
 
@@ -309,6 +325,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
                             discriminator_cell)
 
         g_loss += real_loss(discriminator_output, criterion, device=device)
+
+    import pdb; pdb.set_trace()
 
     ## note the loss flip with respect to the training step of the discriminator
     #d_fake_g = discriminator(generated_tensor_g)
@@ -381,7 +399,7 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
             target_tensor = batch[:, 1, :].to(device)
             target_tensor = torch.t(target_tensor)
 
-            #import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
 
             g_loss, d_loss = train_gan(input_tensor, target_tensor, generator,
                         discriminator, generator_optimizer,
