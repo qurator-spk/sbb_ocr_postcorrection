@@ -10,7 +10,7 @@ class DiscriminatorCNN(nn.Module):
                 hidden_size, 
                 filter_sizes=[3,4,5],
                 num_filters=[100, 100, 100],
-                num_classes = 1,                
+                num_classes = 2,                
                 kernel_size=2, 
                 stride=2, 
                 padding=1, 
