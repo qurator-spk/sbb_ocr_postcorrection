@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +10,7 @@ class DiscriminatorCNN(nn.Module):
                 hidden_size, 
                 filter_sizes=[3,4,5],
                 num_filters=[100, 100, 100],
-                num_classes = 2,                
+                num_classes = 1,                
                 kernel_size=2, 
                 stride=2, 
                 padding=1, 
@@ -37,7 +38,6 @@ class DiscriminatorCNN(nn.Module):
             for i in range(len(filter_sizes))
         ])
 
-        import numpy as np
         self.fc = nn.Linear(np.sum(num_filters), num_classes)
         self.dropout = nn.Dropout(p=dropout_prob)
 

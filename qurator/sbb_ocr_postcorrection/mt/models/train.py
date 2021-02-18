@@ -239,7 +239,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
 
         generated_tensor_g[:, ei] = topi.squeeze(1)
     
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     generated_tensor_d = generated_tensor_g.detach().clone()
 
@@ -402,7 +402,7 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
             target_tensor = batch[:, 1, :].to(device)
             target_tensor = torch.t(target_tensor)
 
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
 
             g_loss, d_loss = train_gan(input_tensor, target_tensor, generator,
                         discriminator, generator_optimizer,
