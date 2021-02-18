@@ -291,12 +291,12 @@ def real_loss(d_logits, criterion, smooth=False, device='cpu'):
     '''
     Taken from: https://github.com/udacity/deep-learning-v2-pytorch/tree/master/gan-mnist
     '''
-    size = d_logits.shape[0]
+    size = d_logits.shape#[0]
 
     if smooth:
         labels = torch.ones(size, device=device)*0.9
     else:
-        labels = torch.ones(size, device=device, dtype=torch.long)
+        labels = torch.ones(size, device=device) # dtype=torch.long
 
     loss = criterion(d_logits, labels)
     return loss
@@ -305,9 +305,9 @@ def fake_loss(d_logits, criterion, device='cpu'):
     '''
     Taken from: https://github.com/udacity/deep-learning-v2-pytorch/tree/master/gan-mnist
     '''
-    size = d_logits.shape[0]
+    size = d_logits.shape#[0]
 
-    labels = torch.zeros(size, device=device, dtype=torch.long)
+    labels = torch.zeros(size, device=device)#, dtype=torch.long)
 
     loss = criterion(d_logits, labels)
     return loss
