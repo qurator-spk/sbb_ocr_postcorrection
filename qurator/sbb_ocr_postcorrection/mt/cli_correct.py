@@ -9,7 +9,7 @@ import pickle
 import torch
 
 from .models.error_detector import DetectorLSTM, DetectorGRU
-from .models.gan import DiscriminatorLinear, DiscriminatorLSTM, GeneratorLSTM
+from .models.gan import DiscriminatorCNN ,DiscriminatorLinear, DiscriminatorLSTM, GeneratorLSTM
 from .models.predict import predict, predict_detector, predict_iters, \
     predict_iters_detector
 from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
@@ -1105,7 +1105,12 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     elif approach == 'gan':
         generator = GeneratorLSTM(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
-        discriminator = DiscriminatorLSTM(input_size, hidden_size, output_size_discriminator, batch_size, device=device).to(device)
+        
+        #discriminator = DiscriminatorLSTM(input_size, hidden_size, output_size_discriminator, batch_size, device=device).to(device)
+
+        discriminator = DiscriminatorCNN(input_size=input_size, hidden_size=hidden_size, kernel_size=2, stride=2, padding=1, lrelu_neg_slope=0.2, dropout_prob=0.5)
+
+        import pdb; pdb.set_trace()
 
         trained_generator, trained_discriminator, generator_optimizer, \
             discriminator_optimizer = train_iters_gan(model_dir, loss_dir,
