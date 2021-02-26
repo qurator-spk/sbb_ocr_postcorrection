@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from .gan import fake_loss, real_loss
+from .seq2seq import Embedding
 from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
 from qurator.sbb_ocr_postcorrection.helpers import timeSince, showPlot
 
@@ -198,8 +199,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     the loss averaged by target length (float)
     '''
 
-    generator_hidden = generator.init_hidden_state()
-    generator_cell = generator.init_cell_state()
+    #generator_hidden = generator.encoder.init_hidden_state()
+    #generator_cell = generator.encoder.init_cell_state()
 
     generator_optimizer.zero_grad()
     discriminator_optimizer.zero_grad()
@@ -212,12 +213,12 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     batch_size = input_tensor.shape[1]
 
     # Batch size implementation needs to be checked
-    generator_outputs = torch.zeros(batch_size,
-                                  target_length,
-                                  generator.output_size,
-                                  device=device)
+    #generator_outputs = torch.zeros(batch_size,
+     #                             target_length,
+      #                            generator.output_size,
+       #                           device=device)
 
-    generated_tensor_g = torch.zeros([batch_size, target_length], dtype=torch.int64, device=device)
+    #generated_tensor_g = torch.zeros([batch_size, target_length], dtype=torch.int64, device=device)
 
     ########################################
     #                                      #
@@ -225,22 +226,38 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                                      #
     ########################################
 
-    for ei in range(input_length):
+    use_teacher_forcing = True if \
+        random.random() < teacher_forcing_ratio else False
 
-        generator_output, generator_hidden, generator_cell = \
-            generator(input_tensor[ei], generator_hidden, generator_cell)
+    generated_tensor_g = generator(input_tensor, target_tensor, input_length,
+                            target_length, use_teacher_forcing)
 
-        #encoder_outputs[ei] = encoder_output[0, 0]
-        # Adjustment batch_size > 1; needs to be checked
-        #for bi in range(batch_size):
-        #    generator_outputs[bi, ei] = generator_output[bi, 0]
-
-        topv, topi = generator_output.data.topk(1)
-
-        generated_tensor_g[:, ei] = topi.squeeze(1)
     
-    #import pdb; pdb.set_trace()
+    generated_tensor_g = generated_tensor_g.transpose(0,1)
 
+    #for ei in range(input_length):
+    #
+    #    generator_output, generator_hidden, generator_cell = \
+    #        generator(input_tensor[ei], generator_hidden, generator_cell)
+    #
+    #    #encoder_outputs[ei] = encoder_output[0, 0]
+    #    # Adjustment batch_size > 1; needs to be checked
+    #    #for bi in range(batch_size):
+    #    #    generator_outputs[bi, ei] = generator_output[bi, 0]
+    #
+    #    topv, topi = generator_output.data.topk(1)
+    #
+    #    generated_tensor_g[:, ei] = topi.squeeze(1)
+    
+    decoded_generated_tensor = torch.zeros(200, 40)
+    for i in range(decoded_generated_tensor.shape[0]):
+        topv, topi = generated_tensor_g[i].data.topk(1)
+
+        decoded_generated_tensor[i, :] = topi.squeeze()  
+
+    decoded_generated_tensor = decoded_generated_tensor.type(torch.LongTensor)
+
+    generated_tensor_g = decoded_generated_tensor
     generated_tensor_d = generated_tensor_g.detach().clone()
 
     #########################
@@ -263,6 +280,12 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     d_fake_loss = 0
 
     target_tensor = torch.t(target_tensor)
+
+    #import pdb; pdb.set_trace()
+
+    #embedder = Embedding()
+
+    #target_tensor = Embedding(target_tensor)
 
     discriminator_output_real = discriminator(target_tensor)
     d_real_loss = real_loss(discriminator_output_real, criterion, smooth=False, device=device)
@@ -402,7 +425,7 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
             target_tensor = batch[:, 1, :].to(device)
             target_tensor = torch.t(target_tensor)
 
-            #import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
 
             g_loss, d_loss = train_gan(input_tensor, target_tensor, generator,
                         discriminator, generator_optimizer,
@@ -711,3 +734,118 @@ def train_iters_seq2seq(model_path, loss_path, data_train, encoder, decoder,
     showPlot(plot_losses)
 
     return encoder, decoder, encoder_optimizer, decoder_optimizer
+
+
+###############################################################################
+
+def train_iters_gan_test(model_path, loss_path, data_train, generator, discriminator,
+               n_epochs, batch_size, learning_rate, print_every=5,
+               plot_every=20, save_every=2, teacher_forcing_ratio=0.5,
+               device='cpu'):
+    '''
+    Run train iteration.
+
+    Keyword arguments:
+    data_train (Custom PyTorch Dataset) -- the training data
+    generator -- the generator network
+    discriminator -- the discriminator network
+    n_epochs (int) -- the number of training epochs
+    batch_size (int) -- the batch size
+    learning_rate (float) -- the learning rate
+    print_every (int) -- defines print status intervall
+    plot_every (int) -- defines plotting intervall
+    teacher_forcing_ratio (float) -- the ratio according to which
+                                     teacher forcing is used
+    device (str) -- the device used for training
+
+    Outputs:
+    generator -- the trained generator
+    discriminator -- the trained discriminator
+    '''
+    start = time.time()
+
+    plot_losses = []
+    print_g_loss_total = 0  # Reset every print_every
+    print_d_loss_total = 0
+    plot_g_loss_total = 0  # Reset every plot_every
+    plot_d_loss_total = 0
+
+    generator_optimizer = optim.AdamW(generator.parameters(), lr=learning_rate)
+    discriminator_optimizer = optim.AdamW(discriminator.parameters(), lr=learning_rate)
+
+    criterion = nn.BCEWithLogitsLoss()
+
+    g_loss_dict = {}
+    d_loss_dict = {}
+
+    for epoch in range(1, n_epochs + 1):
+
+        g_loss_list = []
+        d_loss_list = []
+
+        for batch in DataLoader(data_train, batch_size=batch_size):
+
+            # Tensor dimensions need to be checked
+            input_tensor = batch[:, 0, :].to(device)
+            input_tensor = torch.t(input_tensor) # only needed for LSTM
+            target_tensor = batch[:, 1, :].to(device)
+            target_tensor = torch.t(target_tensor)
+
+            #import pdb; pdb.set_trace()
+
+            g_loss, d_loss = train_gan(input_tensor, target_tensor, generator,
+                        discriminator, generator_optimizer,
+                        discriminator_optimizer, criterion,
+                        teacher_forcing_ratio, device)
+
+            g_loss_list.append(g_loss)
+            d_loss_list.append(d_loss)
+
+            print_g_loss_total += g_loss
+            print_d_loss_total += d_loss
+
+        g_loss_dict[epoch] = g_loss_list
+        d_loss_dict[epoch] = d_loss_list
+
+        if epoch % save_every == 0:
+            root, ext = os.path.splitext(model_path)
+            epoch_path = root + '_' + str(epoch) + ext
+            torch.save({
+                'trained_generator': generator.state_dict(),
+                'trained_discriminator': discriminator.state_dict(),
+                'generator_optimizer': generator_optimizer.state_dict(),
+                'discriminator_optimizer': discriminator_optimizer.state_dict()
+                }, epoch_path)
+
+            with io.open(loss_path, mode='w') as loss_file:
+                json.dump(g_loss_dict, loss_file)
+            with io.open(loss_path, mode='w') as loss_file:
+                json.dump(d_loss_dict, loss_file)
+
+        # TODO: print statements have to be defined for both loss statements
+        if epoch % print_every == 0:
+            print_g_loss_avg = print_g_loss_total / print_every
+            print_g_loss_total = 0
+            print('Generator: {:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
+                                                              epoch/n_epochs),
+                                                              epoch,
+                                                              int(epoch/n_epochs*100),
+                                                              print_g_loss_avg))
+
+        if epoch % print_every == 0:
+            print_d_loss_avg = print_d_loss_total / print_every
+            print_d_loss_total = 0
+            print('Discriminator: {:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
+                                                              epoch/n_epochs),
+                                                              epoch,
+                                                              int(epoch/n_epochs*100),
+                                                              print_d_loss_avg))
+
+        #if epoch % plot_every == 0:
+        #    plot_loss_avg = plot_loss_total / plot_every
+        #    plot_losses.append(plot_loss_avg)
+        #    plot_loss_total = 0
+
+    #showPlot(plot_losses)
+
+    return generator, discriminator, generator_optimizer, discriminator_optimizer
