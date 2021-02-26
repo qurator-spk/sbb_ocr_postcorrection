@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .seq2seq import AttnDecoderLSTM, EncoderLSTM
+
 class DiscriminatorCNN(nn.Module):
     def __init__(self, 
                 input_size, 
@@ -236,6 +238,116 @@ class GeneratorLSTM(nn.Module):
             return torch.zeros(self.num_layers*2, self.batch_size, self.hidden_size, device=self.device)
         else:
             return torch.zeros(self.num_layers, self.batch_size, self.hidden_size, device=self.device)
+
+class GeneratorSeq2Seq(nn.Module):
+    '''
+    The Generator Seq2Seq base model.
+
+    It integrates encoder and decoder models for machine translation.
+
+    Inspired by: https://bastings.github.io/annotated_encoder_decoder/
+    '''
+    def __init__(self, input_size, hidden_size, output_size, batch_size, 
+            seq_length, rnn_type, n_layers, bidirectional, dropout, 
+            activation, device):
+        super(GeneratorSeq2Seq, self).__init__()
+
+        #encoder, decoder, src_embed, trg_embed, rnn_type='LSTM'
+        #self.encoder = encoder 
+        #self.decoder = decoder 
+        #self.src_embed = src_embed 
+        #self.trg_embed = trg_embed
+        #self.rnn_type = rnn_type
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.batch_size = batch_size
+        self.rnn_type = rnn_type
+        self.n_layers = n_layers
+        self.bidirectional = bidirectional
+        self.dropout = dropout
+        self.activation = activation
+        self.device = device
+
+        if rnn_type == 'lstm':
+            self.encoder = EncoderLSTM(input_size, hidden_size, batch_size, n_layers, dropout, device).to(device)
+            self.decoder = AttnDecoderLSTM(hidden_size, output_size, batch_size, seq_length, n_layers, dropout, device).to(device)
+        elif rnn_type == 'gru':
+            pass 
+
+    def forward(self, input_tensor, target_tensor, input_length, target_length,
+        use_teacher_forcing):
+        
+        #################
+        #               #
+        # Encoding Step #
+        #               #
+        #################
+
+        encoder_hidden = self.encoder.init_hidden_state()
+        encoder_cell = self.encoder.init_cell_state()
+
+        encoder_outputs = torch.zeros(self.batch_size,
+                                target_length,
+                                self.hidden_size,
+                                device=self.device)
+
+        for ei in range(input_length):
+            encoder_output, encoder_hidden, encoder_cell = self.encoder(
+                                                            input_tensor[ei], 
+                                                            encoder_hidden, 
+                                                            encoder_cell)
+
+            for bi in range(self.batch_size):
+                encoder_outputs[bi, ei] = encoder_output[bi, 0]
+
+        #################
+        #               #
+        # Decoding Step #
+        #               #
+        #################
+
+        #loss = 0
+
+        decoder_input = input_tensor[0].clone().detach()
+        decoder_outputs = torch.zeros(target_length,
+                            self.batch_size,
+                            self.output_size) # set to 1 for development
+
+        decoder_hidden = encoder_hidden
+        decoder_cell = encoder_cell
+
+        if use_teacher_forcing:
+            for di in range(target_length):
+                decoder_output, decoder_hidden, decoder_cell, \
+                    decoder_attention = self.decoder(decoder_input,
+                                            decoder_hidden, 
+                                            decoder_cell,
+                                            encoder_outputs)
+                
+        #        loss += criterion(decoder_output, target_tensor[di])
+
+                # teacher forcing
+                decoder_input = target_tensor[di]
+                
+                decoder_outputs[di] = decoder_output
+        else:
+            for di in range(target_length):
+                decoder_output, decoder_hidden, decoder_cell, \
+                    decoder_attention = self.decoder(decoder_input,
+                                            decoder_hidden,
+                                            decoder_cell,
+                                            encoder_outputs)
+
+
+        #        loss += criterion(decoder_output, target_tensor[di])
+
+                topv, topi = decoder_output.topk(1)
+                decoder_input = topi.squeeze().detach()
+
+                decoder_outputs[di] = decoder_output
+
+        return decoder_outputs#, loss
 
 class GeneratorTransformer(nn.Module):
     def __init__(self, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5):
