@@ -9,7 +9,7 @@ import pickle
 import torch
 
 from .models.error_detector import DetectorLSTM, DetectorGRU
-from .models.gan import DiscriminatorCNN ,DiscriminatorLinear, DiscriminatorLSTM, GeneratorLSTM
+from .models.gan import DiscriminatorCNN ,DiscriminatorLinear, DiscriminatorLSTM, GeneratorLSTM, GeneratorSeq2Seq
 from .models.predict import predict, predict_detector, predict_iters, \
     predict_iters_detector
 from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
