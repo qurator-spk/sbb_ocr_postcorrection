@@ -9,7 +9,6 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from .gan import fake_loss, real_loss
-from .seq2seq import Embedding
 from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
 from qurator.sbb_ocr_postcorrection.helpers import timeSince, showPlot
 
@@ -282,10 +281,6 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     target_tensor = torch.t(target_tensor)
 
     #import pdb; pdb.set_trace()
-
-    #embedder = Embedding()
-
-    #target_tensor = Embedding(target_tensor)
 
     discriminator_output_real = discriminator(target_tensor)
     d_real_loss = real_loss(discriminator_output_real, criterion, smooth=False, device=device)
