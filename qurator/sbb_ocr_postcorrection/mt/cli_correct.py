@@ -1104,7 +1104,8 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
         }, model_final_out_dir)
 
     elif approach == 'gan':
-        generator = GeneratorSeq2Seq(input_size, hidden_size, output_size, batch_size, n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
+        generator = GeneratorSeq2Seq(input_size=input_size, hidden_size=hidden_size, output_size=output_size, batch_size=batch_size, seq_length=seq_length, rnn_type='lstm',
+                        n_layers=n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
         
         #discriminator = DiscriminatorLSTM(input_size, hidden_size, output_size_discriminator, batch_size, device=device).to(device)
 
