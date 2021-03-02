@@ -248,7 +248,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #
     #    generated_tensor_g[:, ei] = topi.squeeze(1)
     
-    decoded_generated_tensor = torch.zeros(200, 40)
+    decoded_generated_tensor = torch.zeros(200, 40).to(device)
+    
     for i in range(decoded_generated_tensor.shape[0]):
         topv, topi = generated_tensor_g[i].data.topk(1)
 
@@ -257,7 +258,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     decoded_generated_tensor = decoded_generated_tensor.type(torch.LongTensor)
 
     generated_tensor_g = decoded_generated_tensor
-    generated_tensor_d = generated_tensor_g.detach().clone().to(device)
+    generated_tensor_d = generated_tensor_g.detach().clone()
 
     #########################
     #                       #
