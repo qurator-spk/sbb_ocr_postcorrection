@@ -257,7 +257,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     decoded_generated_tensor = decoded_generated_tensor.type(torch.LongTensor)
 
     generated_tensor_g = decoded_generated_tensor
-    generated_tensor_d = generated_tensor_g.detach().clone()
+    generated_tensor_d = generated_tensor_g.detach().clone().to(device)
 
     #########################
     #                       #
