@@ -37,7 +37,11 @@ class EncoderLSTM(nn.Module):
 
     def forward(self, x, hidden, cell):
 
-        embedded = self.embedding(x).view(self.batch_size, 1, -1)
+        if len(x.shape) > 1:
+            embedded = x.view(self.batch_size, 1, -1)
+        else:
+            embedded = self.embedding(x).view(self.batch_size, 1, -1)
+        
         output, (hidden, cell) = self.lstm(embedded, (hidden, cell))
 
         return output, hidden, cell
@@ -205,7 +209,11 @@ class AttnDecoderLSTM(nn.Module):
 
         # import pdb; pdb.set_trace()
 
-        embedded = self.embedding(x).view(1, self.batch_size, -1)  # NOTE: Changed from .view(self.batch_size, 1, -1)
+        if len(x.shape) > 1:
+            embedded = x.view(1, self.batch_size, -1)
+        else:
+            embedded = self.embedding(x).view(1, self.batch_size, -1)  # NOTE: Changed from .view(self.batch_size, 1, -1)
+        
         embedded = F.dropout(embedded, p=self.dropout)
 
         ### Changes made for batch_size > 1; needs to be checked ##############
