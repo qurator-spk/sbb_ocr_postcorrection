@@ -34,6 +34,8 @@ class DiscriminatorCNN(nn.Module):
 
         self.embedding = nn.Embedding(input_size, hidden_size)
 
+        self.one_hot_to_emb = nn.Linear(input_size, hidden_size)
+
         self.conv1_list = nn.ModuleList([
             nn.Conv1d(in_channels=hidden_size,
                       out_channels=num_filters[i],
@@ -53,7 +55,11 @@ class DiscriminatorCNN(nn.Module):
 
     def forward(self, x):
 
-        x = self.embedding(x)
+        #x = self.embedding(x)
+
+        x = self.one_hot_to_emb(x)
+
+        import pdb; pdb.set_trace()
 
         x = x.permute(0,2,1)
         
@@ -346,8 +352,17 @@ class GeneratorSeq2Seq(nn.Module):
                 decoder_input = topi.squeeze().detach()
 
                 decoder_outputs[di] = decoder_output
+        
+        decoder_outputs = decoder_outputs.transpose(0,1)
+    
+        #decoded_generated_tensor_g = torch.zeros(200, 40, requires_grad=True)
 
-        return decoder_outputs#, loss
+        #for i in range(decoded_generated_tensor_g.shape[0]):
+        #    topv, topi = decoder_outputs[i].data.topk(1)
+
+        #    decoded_generated_tensor_g[i, :] = topi.squeeze() 
+
+        return decoder_outputs#decoded_generated_tensor_g#decoder_outputs#, loss
 
 class GeneratorTransformer(nn.Module):
     def __init__(self, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5):
@@ -399,6 +414,28 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
 
+class CERLoss(nn.Module):
+    def __init__(self):
+        super(CERLoss).__init__()
+
+    def forward(self, generated_seq, target_seq):
+        loss = None 
+
+        return loss 
+
+class Embedder(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(Embedder, self).__init__()
+
+        self.input_size = input_size
+        self.output_size = output_size
+
+        self.embedding = nn.Embedding(input_size, output_size)
+    
+    def forward(self, x):
+        return self.embedding(x)
+
+
 def real_loss(d_logits, criterion, smooth=False, device='cpu'):
     '''
     Taken from: https://github.com/udacity/deep-learning-v2-pytorch/tree/master/gan-mnist
@@ -423,3 +460,5 @@ def fake_loss(d_logits, criterion, device='cpu'):
 
     loss = criterion(d_logits, labels)
     return loss
+
+
