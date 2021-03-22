@@ -495,7 +495,8 @@ def evaluate_loss(loss_dir):
 @click.argument('pred-dir', type=click.Path(exists=True))
 @click.argument('ocr-dir', type=click.Path(exists=True))
 @click.argument('gt-dir', type=click.Path(exists=True))
-def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir):
+@click.option('--batch-size', default=200, help='The training batch size.')
+def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir, batch_size):
     '''
     \b
     Arguments:
@@ -511,13 +512,13 @@ def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir):
     ocr_dir = os.path.abspath(ocr_dir)
     gt_dir = os.path.abspath(gt_dir)
 
-    alignments, alignments_as_df, alignments_headers = load_alignments_from_sqlite(alignments_path, size='total')
+    alignments, alignments_as_df, alignments_headers = load_alignments_from_sqlite(align_dir, size='total')
 
-    with io.open(pred_sequences_path, mode='rb') as f_in:
+    with io.open(pred_dir, mode='rb') as f_in:
         pred_sequences = pickle.load(f_in)
-    with io.open(gt_sequences_path, mode='rb') as f_in:
+    with io.open(gt_dir, mode='rb') as f_in:
         gt_sequences = pickle.load(f_in)
-    with io.open(ocr_sequences_path, mode='rb') as f_in:
+    with io.open(ocr_dir, mode='rb') as f_in:
         ocr_sequences = pickle.load(f_in)
 
     size_dataset = find_max_mod(len(alignments), batch_size)
@@ -554,7 +555,7 @@ def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir):
         aligned_gt = ''.join(aligned_gt)
         assert len(aligned_pred) == len(aligned_gt)
 
-        p_cer = character_error_rate.character_error_rate(aligned_pred, aligned_gt)
+        p_cer = character_error_rate(aligned_pred, aligned_gt)
 
         pred_cer.append(p_cer)
         ocr_cer_filtered.append(o_cer)
@@ -716,17 +717,20 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
     code_to_token_dir = os.path.abspath(code_to_token_dir)
     out_dir = os.path.abspath(out_dir)
 
-    ocr_sequences_dir = os.path.join(out_dir, 'ocr_sequences.npy')
+    ocr_sequences_dir = os.path.join(out_dir, 'ocr_sequences.pkl')
     decoded_sequences_dir = os.path.join(out_dir, 'decoded_sequences.pkl')
     pred_sequences_dir = os.path.join(out_dir, 'pred_sequences.pkl')
     gt_sequences_dir = os.path.join(out_dir, 'gt_sequences.pkl')
 
     print('\n1. LOAD DATA (ALIGNMENTS, ENCODINGS, ENCODING MAPPINGS)')
 
-    ocr_encodings = np.load(ocr_encodings_path, allow_pickle=True)
-    gt_encodings = np.load(gt_encodings_path, allow_pickle=True)
+    with io.open(hyper_params_dir, mode='r') as f_in:
+        hyper_params = json.load(f_in)
 
-    size_dataset = find_max_mod(len(ocr_encodings), batch_size)
+    ocr_encodings = np.load(ocr_dir, allow_pickle=True)
+    gt_encodings = np.load(gt_dir, allow_pickle=True)
+
+    size_dataset = find_max_mod(len(ocr_encodings), hyper_params['batch_size'])
 
     ocr_encodings = ocr_encodings[0:size_dataset]
     gt_encodings = gt_encodings[0:size_dataset]
@@ -747,9 +751,6 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
 
     print('\n3. DEFINE HYPERPARAMETERS AND LOAD ENCODER/DECODER NETWORKS')
 
-    with io.open(hyper_params_dir, mode='r') as f_in:
-        hyper_params = json.load(f_in)
-
     input_size = hyper_params['input_size']
     hidden_size = hyper_params['hidden_size']
     output_size = hyper_params['output_size']
@@ -762,10 +763,10 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
     teacher_forcing_ratio = hyper_params['teacher_forcing_ratio']
     device = torch.device(hyper_params['device'])
 
-    encoder = EncoderLSTM(input_size, hidden_size, batch_size, num_layers, device=device)
+    encoder = EncoderLSTM(input_size, hidden_size, batch_size, n_layers, device=device)
 
     if with_attention:
-        decoder = AttnDecoderLSTM(hidden_size, output_size, batch_size, seq_length, num_layers=num_layers, dropout=dropout, device=device)
+        decoder = AttnDecoderLSTM(hidden_size, output_size, batch_size, seq_length, num_layers=n_layers, dropout=dropout, device=device)
     else:
         decoder = DecoderLSTM(hidden_size, output_size, batch_size, device=device)
 
@@ -1023,6 +1024,8 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
     with io.open(token_to_code_dir, mode='r') as f_in:
         token_to_code_mapping = json.load(f_in)
+    
+    code_to_token_mapping = {code: token for token, code in token_to_code_mapping.items()}
 
     print('OCR encoding dimensions: {}'.format(ocr_encodings.shape))
     print('GT encoding dimensions: {}'.format(gt_encodings.shape))
@@ -1104,6 +1107,10 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
         }, model_final_out_dir)
 
     elif approach == 'gan':
+        
+        #just for testing
+        #output_size = hidden_size
+
         generator = GeneratorSeq2Seq(input_size=input_size, hidden_size=hidden_size, output_size=output_size, batch_size=batch_size, seq_length=seq_length, rnn_type='lstm',
                         n_layers=n_layers, bidirectional=False, dropout=dropout_prob, activation='softmax', device=device).to(device)
         
@@ -1111,11 +1118,14 @@ def train_translator(ocr_dir, gt_dir, model_out_dir, token_to_code_dir,
 
         discriminator = DiscriminatorCNN(input_size=input_size, hidden_size=hidden_size, kernel_size=2, stride=2, padding=1, lrelu_neg_slope=0.2, dropout_prob=0.5).to(device)
 
+        print_gradient = True
+
         trained_generator, trained_discriminator, generator_optimizer, \
             discriminator_optimizer = train_iters_gan(model_dir, loss_dir,
                 training_set, generator, discriminator, n_epochs=n_epochs,
-                batch_size=batch_size, learning_rate=lr, plot_every=5,
-                print_every=1, save_every=2,
+                batch_size=batch_size, learning_rate=lr, 
+                code_to_token_mapping=code_to_token_mapping, plot_every=5,
+                print_every=1, save_every=2, print_gradient=print_gradient, 
                 teacher_forcing_ratio=teacher_ratio, device=device)
 
         root, ext = os.path.splitext(model_dir)
