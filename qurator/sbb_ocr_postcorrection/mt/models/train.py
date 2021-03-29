@@ -503,6 +503,129 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
 
     return generator, discriminator, generator_optimizer, discriminator_optimizer
 
+def train_iters_onehot(model_path, loss_path, training_size, converter,
+               n_epochs, seq_length, batch_size, learning_rate, print_every=5, 
+               plot_every=20, save_every=2, device='cpu'):
+    '''
+    Run train iteration.
+
+    Keyword arguments:
+    data_train (Custom PyTorch Dataset) -- the training data
+    encoder -- the encoder network
+    decoder -- the decoder network
+    n_epochs (int) -- the number of training epochs
+    batch_size (int) -- the batch size
+    learning_rate (float) -- the learning rate
+    with_attention (bool) -- defines if attention network is applied
+    print_every (int) -- defines print status intervall
+    plot_every (int) -- defines plotting intervall
+    teacher_forcing_ratio (float) -- the ratio according to which
+                                     teacher forcing is used
+    device (str) -- the device used for training
+
+    Outputs:
+    encoder -- the trained encoder
+    decoder -- the trained decoder
+    '''
+    start = time.time()
+
+    plot_losses = []
+    print_loss_total = 0  # Reset every print_every
+    plot_loss_total = 0  # Reset every plot_every
+
+    optimizer = optim.AdamW(converter.parameters(), lr=learning_rate)
+
+    #criterion = nn.NLLLoss()
+    criterion = nn.MSELoss()
+
+    loss_dict = {}
+
+    input_size = converter.fc1.in_features
+
+    for epoch in range(1, n_epochs + 1):
+
+        loss_list = []
+
+        batch_number = int(training_size / batch_size)
+
+        for i in range(batch_number):
+
+            input_tensor = torch.rand([batch_size, seq_length, input_size], requires_grad=True, device=device)
+
+
+            #https://discuss.pytorch.org/t/set-max-value-to-1-others-to-0/44350/2
+
+            max_values = input_tensor.argmax(2)
+            target_tensor = nn.functional.one_hot(max_values, num_classes=input_size).float().to(device)
+
+            pred_tensor = converter(input_tensor)
+            #pred_argmax = pred_tensor.argmax(2)
+
+            loss = criterion(pred_tensor, target_tensor)
+
+            # Backprop and Optimization
+            loss.backward()
+            optimizer.step()
+
+            loss_list.append(loss.item())
+
+            print_loss_total += loss
+            plot_loss_total += loss
+
+        #for batch in DataLoader(data_train, batch_size=batch_size):
+
+        #    # Tensor dimensions need to be checked
+        #    input_tensor = batch[:, 0, :].to(device)
+        #    input_tensor = torch.t(input_tensor)
+        #    target_tensor = batch[:, 1, :].to(device)
+        #    target_tensor = torch.t(target_tensor)
+
+        #    pred_tensor = converter(input_tensor)
+
+        #    loss = criterion(pred_tensor, target_tensor)
+
+        #    # Backprop and Optimization
+        #    loss.backward()
+        #    optimizer.step()
+
+        #    loss_list.append(loss)
+
+        #    print_loss_total += loss
+        #    plot_loss_total += loss
+
+        loss_dict[epoch] = loss_list
+
+        if epoch % save_every == 0:
+
+            import pdb; pdb.set_trace()
+
+            root, ext = os.path.splitext(model_path)
+            epoch_path = root + '_' + str(epoch) + ext
+            torch.save({
+                'trained_converter': converter.state_dict(),
+                'converter_optimizer': optimizer.state_dict(),
+                }, epoch_path)
+            with io.open(loss_path, mode='w') as loss_file:
+                json.dump(loss_dict, loss_file)
+
+        if epoch % print_every == 0:
+            print_loss_avg = print_loss_total / print_every
+            print_loss_total = 0
+            print('{:s} ({:d} {:d}%) {:.6f}'.format(timeSince(start,
+                                                              epoch/n_epochs),
+                                                    epoch,
+                                                    int(epoch/n_epochs*100),
+                                                    print_loss_avg))
+
+        if epoch % plot_every == 0:
+            plot_loss_avg = plot_loss_total / plot_every
+            plot_losses.append(plot_loss_avg)
+            plot_loss_total = 0
+
+    showPlot(plot_losses)
+
+    return converter, optimizer
+
 
 def train_seq2seq(input_tensor, target_tensor, encoder, decoder,
           encoder_optimizer, decoder_optimizer, criterion, with_attention,
