@@ -10,11 +10,12 @@ import torch
 
 from .models.error_detector import DetectorLSTM, DetectorGRU
 from .models.gan import DiscriminatorCNN ,DiscriminatorLinear, DiscriminatorLSTM, GeneratorLSTM, GeneratorSeq2Seq
+from .models.helper_models import OneHotConverter
 from .models.predict import predict, predict_detector, predict_iters, \
     predict_iters_detector
 from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
 from .models.train import  train_iters_detector, train_iters_gan, \
-    train_iters_seq2seq
+    train_iters_onehot, train_iters_seq2seq
 
 from qurator.sbb_ocr_postcorrection.data_structures import OCRCorrectionDataset
 from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
@@ -781,6 +782,8 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
 
     decodings = predict_iters(dataset, encoder, decoder, batch_size, seq_length, with_attention, device=device)
 
+    import pdb; pdb.set_trace()
+
     print('\n5. DECODE SEQUENCES')
 
     decoded_sequences = []
@@ -964,6 +967,127 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
         'trained_detector': trained_detector.state_dict(),
         'optimizer': optimizer.state_dict(),
     }, model_out_dir)
+
+################################################################################
+@click.command()
+#@click.argument('one-hot-dir', type=click.Path(exists=True))
+#@click.argument('target-dir', type=click.Path(exists=True))
+@click.argument('model-out-dir')
+@click.argument('token-to-code-dir', type=click.Path(exists=True)) #only needed for encoding_size; maybe find alternative
+@click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture. (default: 512)')
+@click.option('--seq-length', default=40, help='The sequence length. (default: 40)')
+@click.option('--training-size', default=100000, help='The training size. (default: 100000)')
+@click.option('--batch-size', default=200, help='The training batch size. (default: 200)')
+@click.option('--n-epochs', default=1000, help='The number of training epochs. (default: 1000)')
+@click.option('--lr', default=0.0001, help='The learning rate. (default: 0.0001)')
+@click.option('--n-layers', default=2, help='The number of RNN layers. (default: 2)')
+@click.option('--dropout-prob', default=0.2, help='The dropout probability. (default: 0.2)')
+def train_onehot_converter(model_out_dir, token_to_code_dir, hidden_size, 
+                    seq_length, training_size, batch_size, n_epochs, lr, 
+                    n_layers, dropout_prob):
+    '''
+    Train translator component of OCR post-correction pipeline.
+
+    \b
+    Arguments:
+    ocr-dir -- The absolute path to the OCR data
+    gt-dir -- The absolute path to the GT data
+    model-out-dir -- The absolute path for the trained models
+    token-to-code-dir -- The absolute path to the token-encoding mapping
+    '''
+
+    # make paths absolute
+    #one_hot_dir = os.path.abspath(one_hot_dir)
+    #target_dir = os.path.abspath(target_dir)
+    model_out_dir = os.path.abspath(model_out_dir)
+    token_to_code_dir = os.path.abspath(token_to_code_dir)
+
+    if not os.path.isdir(model_out_dir):
+        os.mkdir(model_out_dir)
+
+    today = date.today()
+    model_name = 'onehot_embedder_' + today.strftime("%d%m%y")
+
+    model_dir = os.path.join(model_out_dir, model_name+'.pt')
+    loss_dir = os.path.join(model_out_dir, 'losses_'+model_name+'.json')
+    hyper_params_dir = os.path.join(model_out_dir, 'hyperparams_'+model_name+'.json')
+
+    print('\n1. LOAD DATA (ALIGNMENTS, ENCODINGS, ENCODING MAPPINGS)')
+
+    #one_hot_encodings = np.load(one_hot_dir, allow_pickle=True)
+    #target_encodings = np.load(target_dir, allow_pickle=True)
+
+    size_dataset = find_max_mod(training_size, batch_size)
+
+    #one_hot_encodings = one_hot_encodings[0:size_dataset]
+    #target_encodings = target_encodings[0:size_dataset]
+
+    #assert one_hot_encodings.shape == target_encodings.shape
+
+    with io.open(token_to_code_dir, mode='r') as f_in:
+        token_to_code_mapping = json.load(f_in)
+    
+    code_to_token_mapping = {code: token for token, code in token_to_code_mapping.items()}
+
+    #print('One Hot encoding dimensions: {}'.format(one_hot_encodings.shape))
+    #print('Target encoding dimensions: {}'.format(target_encodings.shape))
+
+    # add 1 for additional 0 padding, i.e. padded 0 are treated as vocab
+    encoding_size = len(token_to_code_mapping) + 1
+    print('Token encodings: {}'.format(encoding_size))
+
+    print('\n2. INITIALIZE DATASET OBJECT')
+
+    #training_set = OCRCorrectionDataset(one_hot_encodings, target_encodings)
+    #len(training_set)
+    #print('Training size : {}'.format(len(training_set)))
+
+    print('\n3. DEFINE HYPERPARAMETERS AND INITIALIZE ENCODER/DECODER NETWORKS')
+
+    input_size = encoding_size
+    output_size = input_size
+    print('Input - Hidden - Output: {} - {} - {}'.format(input_size, hidden_size, output_size))
+    #seq_length = training_set[0].shape[-1]
+    print('Sequence Length: {}'.format(seq_length))
+    print('Batch Size: {}'.format(batch_size))
+    print('Epochs: {}'.format(n_epochs))
+    print('Learning Rate: {}'.format(lr))
+    print('Dropout Probability: {}'.format(dropout_prob))
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print('Training Device: {}'.format(device))
+
+    hyper_params = {
+        'input_size': input_size,
+        'hidden_size': hidden_size,
+        'output_size': output_size,
+        'seq_length': seq_length,
+        'batch_size': batch_size,
+        'n_epochs': n_epochs,
+        'learning_rate': lr,
+        'num_layers': n_layers,
+        'dropout': dropout_prob,
+        'training_device': device.type
+    }
+
+    with io.open(hyper_params_dir, mode='w') as params_file:
+        json.dump(hyper_params, params_file)
+    
+    converter = OneHotConverter(input_size, hidden_size, n_layers).to(device)
+
+    print('\n4. TRAIN MODEL')
+    trained_converter, converter_optimizer = train_iters_onehot(model_dir, 
+            loss_dir, training_size, converter, n_epochs=n_epochs, 
+            seq_length=seq_length, batch_size=batch_size, learning_rate=lr, 
+            print_every=1, plot_every=5, save_every=2, device=device)
+
+    root, ext = os.path.splitext(model_out_dir)
+    model_final_out_dir = root + '_final' + ext
+
+    torch.save({
+        'trained_converter': trained_converter.state_dict(),
+        'converter_optimizer': converter_optimizer.state_dict(),
+    }, model_final_out_dir)
+
 
 ################################################################################
 @click.command()
