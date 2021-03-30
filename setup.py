@@ -37,7 +37,7 @@ setup(
             'predict-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_detector',
             'predict-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_translator',
             'train-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_detector',
-            'train-onehot-converter=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_onehot_converter',
+            'train-argmax-converter=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_argmax_converter',
             'train-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_translator'
         ]
     }
