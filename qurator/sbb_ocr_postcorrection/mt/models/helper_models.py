@@ -1,9 +1,9 @@
 import torch 
 import torch.nn as nn 
 
-class OneHotConverter(nn.Module):
+class ArgMaxConverter(nn.Module):
     def __init__(self, input_size, hidden_size, n_layers):
-        super(OneHotConverter, self).__init__()
+        super(ArgMaxConverter, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
