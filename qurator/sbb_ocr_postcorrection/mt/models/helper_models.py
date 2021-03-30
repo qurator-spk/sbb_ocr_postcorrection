@@ -13,7 +13,7 @@ class ArgMaxConverter(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, output_size)
-        self.relu = nn.ReLu()
+        self.relu = nn.ReLU()
         self.softmax = nn.softmax(dim=2)
     
     def forward(self, x):
