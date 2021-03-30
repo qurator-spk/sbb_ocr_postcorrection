@@ -503,29 +503,30 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
 
     return generator, discriminator, generator_optimizer, discriminator_optimizer
 
-def train_iters_onehot(model_path, loss_path, training_size, converter,
+def train_iters_argmax(model_path, loss_path, training_size, converter,
                n_epochs, seq_length, batch_size, learning_rate, print_every=5, 
                plot_every=20, save_every=2, device='cpu'):
     '''
-    Run train iteration.
+    Run train iteration for argmax converter model.
+
+    During training input and target tensors are created on the fly. 
 
     Keyword arguments:
-    data_train (Custom PyTorch Dataset) -- the training data
-    encoder -- the encoder network
-    decoder -- the decoder network
+    model_path -- the output dir for the trained models 
+    loss_path -- the output dir for the loss 
+    training_size -- the size of the training set 
+    converter -- the argmax converter model
     n_epochs (int) -- the number of training epochs
+    seq_length (int) -- the sequence length
     batch_size (int) -- the batch size
     learning_rate (float) -- the learning rate
-    with_attention (bool) -- defines if attention network is applied
     print_every (int) -- defines print status intervall
     plot_every (int) -- defines plotting intervall
-    teacher_forcing_ratio (float) -- the ratio according to which
-                                     teacher forcing is used
     device (str) -- the device used for training
 
     Outputs:
-    encoder -- the trained encoder
-    decoder -- the trained decoder
+    converter -- the trained converter
+    optimizer -- the optimizer
     '''
     start = time.time()
 
@@ -535,7 +536,6 @@ def train_iters_onehot(model_path, loss_path, training_size, converter,
 
     optimizer = optim.AdamW(converter.parameters(), lr=learning_rate)
 
-    #criterion = nn.NLLLoss()
     criterion = nn.MSELoss()
 
     loss_dict = {}
@@ -550,9 +550,10 @@ def train_iters_onehot(model_path, loss_path, training_size, converter,
 
         for i in range(batch_number):
 
-            input_tensor = torch.rand([batch_size, seq_length, input_size], requires_grad=True, device=device)
+            optimizer.zero_grad()
 
-
+            input_tensor = torch.rand([batch_size, seq_length, input_size], device=device)
+ 
             #https://discuss.pytorch.org/t/set-max-value-to-1-others-to-0/44350/2
 
             max_values = input_tensor.argmax(2)
@@ -572,32 +573,9 @@ def train_iters_onehot(model_path, loss_path, training_size, converter,
             print_loss_total += loss
             plot_loss_total += loss
 
-        #for batch in DataLoader(data_train, batch_size=batch_size):
-
-        #    # Tensor dimensions need to be checked
-        #    input_tensor = batch[:, 0, :].to(device)
-        #    input_tensor = torch.t(input_tensor)
-        #    target_tensor = batch[:, 1, :].to(device)
-        #    target_tensor = torch.t(target_tensor)
-
-        #    pred_tensor = converter(input_tensor)
-
-        #    loss = criterion(pred_tensor, target_tensor)
-
-        #    # Backprop and Optimization
-        #    loss.backward()
-        #    optimizer.step()
-
-        #    loss_list.append(loss)
-
-        #    print_loss_total += loss
-        #    plot_loss_total += loss
-
         loss_dict[epoch] = loss_list
-
+        
         if epoch % save_every == 0:
-
-            import pdb; pdb.set_trace()
 
             root, ext = os.path.splitext(model_path)
             epoch_path = root + '_' + str(epoch) + ext
