@@ -14,7 +14,7 @@ class ArgMaxConverter(nn.Module):
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, output_size)
         self.relu = nn.ReLU()
-        self.softmax = nn.softmax(dim=2)
+        self.softmax = nn.Softmax(dim=2)
     
     def forward(self, x):
 
@@ -22,4 +22,6 @@ class ArgMaxConverter(nn.Module):
         x = self.relu(self.fc2(x))
         x = self.fc3(x)
 
-        return self.softmax(x)
+        #import pdb; pdb.set_trace()
+
+        return x
