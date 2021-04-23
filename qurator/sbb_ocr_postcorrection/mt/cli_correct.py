@@ -10,9 +10,9 @@ import torch
 
 from .models.error_detector import DetectorLSTM, DetectorGRU
 from .models.gan import DiscriminatorCNN ,DiscriminatorLinear, DiscriminatorLSTM, GeneratorLSTM, GeneratorSeq2Seq
-from .models.helper_models import ArgMaxConverter
+from .models.helper_models import ArgMaxConverter, ArgMaxConverterCNN
 from .models.predict import predict, predict_detector, predict_iters, \
-    predict_iters_detector
+    predict_iters_detector, predict_iters_argmax
 from .models.seq2seq import AttnDecoderLSTM, DecoderLSTM, EncoderLSTM
 from .models.train import  train_iters_detector, train_iters_gan, \
     train_iters_argmax, train_iters_seq2seq
@@ -593,6 +593,95 @@ def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir, batch_size):
 
 ################################################################################
 @click.command()
+#@click.argument('ocr-dir', type=click.Path(exists=True))
+#@click.argument('gt-dir', type=click.Path(exists=True))
+@click.argument('model-dir', type=click.Path(exists=True))
+@click.argument('hyper-params-dir', type=click.Path(exists=True))
+#@click.argument('code-to-token-dir', type=click.Path(exists=True))
+@click.argument('out-dir', type=click.Path(exists=True))
+@click.option('--testing-size', default=200, help='The testing size.')
+def predict_argmax_converter(model_dir, hyper_params_dir, out_dir, testing_size):
+    '''
+    \b
+    Arguments:
+    model-dir --
+    hyper-params-dir --
+    out-dir --
+    '''
+
+    # make paths absolute
+    #ocr_dir = os.path.abspath(ocr_dir)
+    #gt_dir = os.path.abspath(gt_dir)
+    model_dir = os.path.abspath(model_dir)
+    hyper_params_dir = os.path.abspath(hyper_params_dir)
+    #code_to_token_dir = os.path.abspath(code_to_token_dir)
+    #out_dir = os.path.abspath(out_dir)
+
+    predictions_dir = os.path.join(out_dir, 'predictions_argmax.pkl')
+    targets_dir = os.path.join(out_dir, 'targets_argmax.pkl')
+    #pred_sequences_dir = os.path.join(out_dir, 'pred_sequences.pkl')
+    #gt_sequences_dir = os.path.join(out_dir, 'gt_sequences.pkl')
+
+    #print('\n1. LOAD DATA (ALIGNMENTS, ENCODINGS, ENCODING MAPPINGS)')
+
+    with io.open(hyper_params_dir, mode='r') as f_in:
+        hyper_params = json.load(f_in)
+
+    #ocr_encodings = np.load(ocr_dir, allow_pickle=True)
+    #gt_encodings = np.load(gt_dir, allow_pickle=True)
+
+    #size_dataset = find_max_mod(len(ocr_encodings), hyper_params['batch_size'])
+
+    #ocr_encodings = ocr_encodings[0:size_dataset]
+    #gt_encodings = gt_encodings[0:size_dataset]
+
+    #assert ocr_encodings.shape == gt_encodings.shape
+
+    #print('OCR encoding dimensions: {}'.format(ocr_encodings.shape))
+    #print('GT encoding dimensions: {}'.format(gt_encodings.shape))
+
+    #with io.open(code_to_token_dir, mode='r') as f_in:
+    #    code_to_token_mapping = json.load(f_in)
+
+    #print('\n2. INITIALIZE DATASET OBJECT')
+
+    #dataset = OCRCorrectionDataset(ocr_encodings, gt_encodings)
+
+    #print('Testing size: {}'.format(len(dataset)))
+
+    #print('\n3. DEFINE HYPERPARAMETERS AND LOAD ENCODER/DECODER NETWORKS')
+
+    input_size = hyper_params['input_size']
+    hidden_size = hyper_params['hidden_size']
+    output_size = hyper_params['output_size']
+    batch_size = hyper_params['batch_size']
+    n_epochs = hyper_params['n_epochs']
+    seq_length = hyper_params['seq_length']
+    num_layers = hyper_params['num_layers']
+    dropout = hyper_params['dropout']
+    device = torch.device(hyper_params['training_device'])
+
+    converter = ArgMaxConverter(input_size, hidden_size, num_layers)
+
+    checkpoint = torch.load(model_dir, map_location=device)
+    converter.load_state_dict(checkpoint['trained_converter'])
+
+    converter.eval()
+
+    print('\n4. PREDICT SEQUENCES')
+
+    predictions, targets = predict_iters_argmax(converter, testing_size, batch_size, seq_length, device=device)
+
+    #import pdb; pdb.set_trace()
+
+
+    with io.open(predictions_dir, mode='wb') as f_out:
+        pickle.dump(predictions, f_out)
+    with io.open(targets_dir, mode='wb') as f_out:
+        pickle.dump(targets, f_out)
+
+################################################################################
+@click.command()
 @click.argument('ocr-dir', type=click.Path(exists=True))
 @click.argument('gt-dir', type=click.Path(exists=True))
 @click.argument('targets-dir', type=click.Path(exists=True))
@@ -974,6 +1063,7 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
 #@click.argument('target-dir', type=click.Path(exists=True))
 @click.argument('model-out-dir')
 @click.argument('token-to-code-dir', type=click.Path(exists=True)) #only needed for encoding_size; maybe find alternative
+@click.option('--approach', default='linear', help='Argmax conversion approach: "linear" or "cnn". (default: "linear")')
 @click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture. (default: 512)')
 @click.option('--seq-length', default=40, help='The sequence length. (default: 40)')
 @click.option('--training-size', default=100000, help='The training size. (default: 100000)')
@@ -982,7 +1072,7 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
 @click.option('--lr', default=0.0001, help='The learning rate. (default: 0.0001)')
 @click.option('--n-layers', default=2, help='The number of RNN layers. (default: 2)')
 @click.option('--dropout-prob', default=0.2, help='The dropout probability. (default: 0.2)')
-def train_argmax_converter(model_out_dir, token_to_code_dir, hidden_size, 
+def train_argmax_converter(model_out_dir, token_to_code_dir, approach, hidden_size, 
                     seq_length, training_size, batch_size, n_epochs, lr, 
                     n_layers, dropout_prob):
     '''
@@ -1047,7 +1137,10 @@ def train_argmax_converter(model_out_dir, token_to_code_dir, hidden_size,
     with io.open(hyper_params_dir, mode='w') as params_file:
         json.dump(hyper_params, params_file)
     
-    converter = ArgMaxConverter(input_size, hidden_size, n_layers).to(device)
+    if approach == 'linear':
+        converter = ArgMaxConverter(input_size, hidden_size, n_layers).to(device)
+    elif approach == 'cnn':
+        converter = ArgMaxConverterCNN(input_size, hidden_size)
 
     print('\n2. TRAIN MODEL')
     trained_converter, converter_optimizer = train_iters_argmax(model_dir, 
