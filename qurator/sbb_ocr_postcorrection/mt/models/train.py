@@ -255,7 +255,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     target_tensor = torch.t(target_tensor)
 
     generated_tensor_d = generator(input_tensor, target_tensor, input_length,
-                            target_length, use_teacher_forcing)
+                            target_length, use_teacher_forcing).to(device)
     
     #import pdb; pdb.set_trace()
 
@@ -307,7 +307,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #target_tensor = torch.t(target_tensor)
 
     generated_tensor_g = generator(input_tensor, target_tensor, input_length,
-                            target_length, use_teacher_forcing)
+                            target_length, use_teacher_forcing).to(device)
 
     
     #generated_tensor_g = generated_tensor_g.transpose(0,1)
