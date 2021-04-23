@@ -37,7 +37,7 @@ class DiscriminatorCNN(nn.Module):
         self.one_hot_to_emb = nn.Linear(input_size, hidden_size)
 
         self.conv1_list = nn.ModuleList([
-            nn.Conv1d(in_channels=hidden_size,
+            nn.Conv1d(in_channels=input_size,#in_channels=hidden_size,
                       out_channels=num_filters[i],
                       kernel_size=filter_sizes[i])
             for i in range(len(filter_sizes))
@@ -57,9 +57,9 @@ class DiscriminatorCNN(nn.Module):
 
         #x = self.embedding(x)
 
-        x = self.one_hot_to_emb(x)
+        #x = self.one_hot_to_emb(x)
 
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
         x = x.permute(0,2,1)
         
