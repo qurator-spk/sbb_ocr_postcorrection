@@ -238,22 +238,26 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     #                       #
     #########################
 
-    import pdb; pdb.set_trace()
+    input_size = generator.input_size
 
-    #target_tensor = torch.t(target_tensor)
-    target_tensor = nn.functional.one_hot(target_tensor)
+    target_tensor = torch.t(target_tensor)
+    target_tensor_one_hot = nn.functional.one_hot(target_tensor, num_classes=input_size).float().to(device)
 
-    discriminator_output_real = discriminator(target_tensor)
+    # add noise to target tensor 
+    target_tensor_one_hot = target_tensor_one_hot + (0.1**0.5)*torch.randn(target_tensor_one_hot.shape)
+    target_tensor_one_hot = nn.functional.softmax(target_tensor_one_hot, 2)
+
+    discriminator_output_real = discriminator(target_tensor_one_hot)
     d_real_loss = real_loss(discriminator_output_real, criterion, smooth=False, device=device)
     
     #import pdb; pdb.set_trace()
 
-    #target_tensor = torch.t(target_tensor)
+    target_tensor = torch.t(target_tensor)
 
     generated_tensor_d = generator(input_tensor, target_tensor, input_length,
                             target_length, use_teacher_forcing)
     
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
 
     #if generated_tensor_d.shape != target_tensor.shape:
@@ -264,7 +268,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     
     #decoded_generated_tensor_d = torch.zeros([200, 40], requires_grad=True)
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     #for i in range(decoded_generated_tensor_d.shape[0]):
     #    topv, topi = generated_tensor_d[i].data.topk(1)
@@ -315,7 +319,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
 
     #    decoded_generated_tensor_g[i, :] = topi.squeeze() 
 
-    import pdb; pdb.set_trace() 
+    #import pdb; pdb.set_trace() 
 
     #generated_tensor_g = generated_tensor_g.type(torch.LongTensor)
 
@@ -342,7 +346,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     g_loss.backward(retain_graph=True)
     d_loss.backward()
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     p_list = []
     for p in generator.parameters():
@@ -352,7 +356,7 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     for p in discriminator.parameters():
         p_list_2.append(p.grad) 
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     generator_optimizer.step()
     discriminator_optimizer.step()
@@ -446,7 +450,7 @@ def train_iters_gan(model_path, loss_path, data_train, generator, discriminator,
                                   teacher_forcing_ratio, code_to_token_mapping, 
                                   device, embedder)
             
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
 
             for p in generator_parameters:
                 p_list.append(p.grad)
@@ -540,20 +544,29 @@ def train_iters_argmax(model_path, loss_path, training_size, converter,
 
     loss_dict = {}
 
-    input_size = converter.fc1.in_features
+    input_size = converter.input_size
+
+
+    distributions = ['uniform', 'normal']
+
+    batch_number = int(training_size / batch_size)
 
     for epoch in range(1, n_epochs + 1):
 
         loss_list = []
 
-        batch_number = int(training_size / batch_size)
-
         for i in range(batch_number):
 
             optimizer.zero_grad()
 
-            input_tensor = torch.rand([batch_size, seq_length, input_size], device=device)
- 
+            distribution = random.sample(distributions, 1)[0]
+
+            if distribution == 'uniform':
+                input_tensor = torch.rand([batch_size, seq_length, input_size], device=device)
+            elif distribution == 'normal':
+                input_tensor = torch.randn([batch_size, seq_length, input_size], device=device)
+
+
             #https://discuss.pytorch.org/t/set-max-value-to-1-others-to-0/44350/2
 
             max_values = input_tensor.argmax(2)
@@ -570,8 +583,10 @@ def train_iters_argmax(model_path, loss_path, training_size, converter,
 
             loss_list.append(loss.item())
 
-            print_loss_total += loss
-            plot_loss_total += loss
+            print_loss_total += loss.item()
+            plot_loss_total += loss.item()
+
+            #import pdb; pdb.set_trace()
 
         loss_dict[epoch] = loss_list
         
