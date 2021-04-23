@@ -32,18 +32,18 @@ class DiscriminatorCNN(nn.Module):
         self.padding = padding
         self.lrelu_neg_slope = lrelu_neg_slope
 
-        self.embedding = nn.Embedding(input_size, hidden_size)
+        #self.embedding = nn.Embedding(input_size, hidden_size)
 
         self.one_hot_to_emb = nn.Linear(input_size, hidden_size)
 
         self.conv1_list = nn.ModuleList([
-            nn.Conv1d(in_channels=input_size,#in_channels=hidden_size,
+            nn.Conv1d(in_channels=hidden_size, #in_channels=input_size,
                       out_channels=num_filters[i],
                       kernel_size=filter_sizes[i])
             for i in range(len(filter_sizes))
         ])
 
-        self.fc = nn.Linear(np.sum(num_filters), num_classes)
+        self.fc_out = nn.Linear(np.sum(num_filters), num_classes)
         self.dropout = nn.Dropout(p=dropout_prob)
 
         #self.conv1 = nn.Conv1d(self.seq_len, self.seq_len*2 , kernel_size=kernel_size, stride=stride, padding=padding)
@@ -57,7 +57,7 @@ class DiscriminatorCNN(nn.Module):
 
         #x = self.embedding(x)
 
-        #x = self.one_hot_to_emb(x)
+        x = self.one_hot_to_emb(x)
 
         #import pdb; pdb.set_trace()
 
@@ -70,7 +70,7 @@ class DiscriminatorCNN(nn.Module):
 
         x_fc = torch.cat([x_pool.squeeze(dim=2) for x_pool in x_pool_list], dim=1)
 
-        logits = self.fc(self.dropout(x_fc))
+        logits = self.fc_out(self.dropout(x_fc))
 
         if self.num_classes == 1:
             logits = logits.squeeze()
