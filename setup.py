@@ -34,6 +34,7 @@ setup(
             #cli_correct.py
             'evaluate-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:evaluate_detector',
             'evaluate-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:evaluate_translator',
+            'predict-argmax-converter=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_argmax_converter',
             'predict-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_detector',
             'predict-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_translator',
             'train-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_detector',
