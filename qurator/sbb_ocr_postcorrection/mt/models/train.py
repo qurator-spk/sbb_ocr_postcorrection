@@ -244,8 +244,8 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     target_tensor_one_hot = nn.functional.one_hot(target_tensor, num_classes=input_size).float()
 
     # add noise to target tensor 
-    target_tensor_one_hot = target_tensor_one_hot + (0.1**0.5)*torch.randn(target_tensor_one_hot.shape)
-    target_tensor_one_hot = nn.functional.softmax(target_tensor_one_hot, 2).to(device)
+    target_tensor_one_hot = target_tensor_one_hot + (0.1**0.5)*torch.randn(target_tensor_one_hot.shape).to(device)
+    target_tensor_one_hot = nn.functional.softmax(target_tensor_one_hot, 2)
 
     discriminator_output_real = discriminator(target_tensor_one_hot)
     d_real_loss = real_loss(discriminator_output_real, criterion, smooth=False, device=device)
