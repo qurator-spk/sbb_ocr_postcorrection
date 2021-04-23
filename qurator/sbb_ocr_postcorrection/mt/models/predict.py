@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 
 
@@ -63,17 +64,18 @@ def predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_l
 
         #decoded_tokens = []
         decoded_tokens = np.zeros([batch_size, target_length], dtype=np.int64)
+        topv_scores = torch.zeros([batch_size, target_length], dtype=torch.float64)
+        #decoder_output_raw = torch.zeros((target_length, batch_size, trained_decoder.out.out_features), dtype=torch.float64)
 
         if with_attention:
-
-            #import pdb; pdb.set_trace()
 
             decoder_attentions = torch.zeros(seq_length, seq_length)
             #decoder_attentions = torch.zeros(batch_size, target_length)
 
-
             for di in range(seq_length):
                 decoder_output, decoder_hidden, decoder_cell, decoder_attention = trained_decoder(decoder_input, decoder_hidden, decoder_cell, encoder_outputs)
+
+                #decoder_output_raw[di, :] = decoder_output
 
                 # attention array needs to be fixed
                 #decoder_attentions[di] = decoder_attention.data
@@ -83,11 +85,16 @@ def predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_l
                 decoder_input = topi.squeeze().detach()
 
                 decoded_tokens[:, di] = topi.squeeze(1)
+
+                topv = topv.squeeze().detach()
+                topv_scores[:, di] = topv
                 #decoded_tokens.append(topi.item())
         else:
 
             for di in range(seq_length):
                 decoder_output, decoder_hidden, decoder_cell = trained_decoder(decoder_input, decoder_hidden, decoder_cell)
+
+               # decoder_output_raw[di, :] = decoder_output
 
                 topv, topi = decoder_output.data.topk(1)
 
@@ -96,7 +103,9 @@ def predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_l
                 decoded_tokens[:, di] = topi.squeeze(1)
                 #decoded_tokens.append(topi.item())
 
-        return decoded_tokens
+        #decoder_output_raw = decoder_output_raw.permute(1,0,2).numpy()
+
+        return decoded_tokens, topv_scores#decoder_output_raw
 
 
 def predict_detector(input_tensor, target_tensor, trained_detector, output_size, device):
@@ -156,11 +165,10 @@ def predict_iters(data_test, trained_encoder, trained_decoder, batch_size, seq_l
     '''
 
     '''
+
+    batch_number = int(len(data_test) / batch_size)
+
     decodings = []
-
-    #import pdb
-    #pdb.set_trace()
-
 
     for batch in DataLoader(data_test, batch_size=batch_size):
         # Tensor dimensions need to be checked
@@ -169,12 +177,44 @@ def predict_iters(data_test, trained_encoder, trained_decoder, batch_size, seq_l
         target_tensor = batch[:, 1, :].to(device)
         target_tensor = torch.t(target_tensor)
 
-        decoded_tokens = predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_length, with_attention, device)
+        decoded_tokens, topv_scores = predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_length, with_attention, device)
+
+        import pdb; pdb.set_trace()
+       
 
         decodings.append(decoded_tokens)
 
 
     return decodings
+
+def predict_iters_argmax(converter, testing_size, batch_size, seq_length, device):
+    '''
+
+    '''
+
+    batch_number = int(testing_size / batch_size)
+    predictions = []
+    targets = []
+
+    input_size = converter.fc1.in_features
+
+    with torch.no_grad():
+
+        for i in range(batch_number):
+
+            input_tensor = torch.rand([batch_size, seq_length, input_size], device=device)
+ 
+            #https://discuss.pytorch.org/t/set-max-value-to-1-others-to-0/44350/2
+            max_values = input_tensor.argmax(2)
+            target_tensor = nn.functional.one_hot(max_values, num_classes=input_size).float().to(device)
+            targets.append(target_tensor)
+
+            pred_tensor = converter(input_tensor)
+            #pred_argmax = pred_tensor.argmax(2)
+            predictions.append(pred_tensor)
+
+
+    return predictions, targets
 
 def predict_iters_detector(data_test, targets_test, trained_detector, batch_size, output_size, device):
     '''
