@@ -42,6 +42,13 @@ def decode_sequence(sequence, decoding_mapping):
 
 def join_sequence(sequence):
     '''
+    Join single sequence and replace WSC, SOS, and EOS.
+
+    Keyword arguments:
+    sequence (list) -- the sequence
+
+    Outputs:
+    joined_sequence (str) -- the joined sequence
     '''
     joined_sequence = ''.join(sequence)
     joined_sequence = joined_sequence.replace('<WSC>', ' ')
@@ -53,6 +60,13 @@ def join_sequence(sequence):
 
 def vectorize_encoded_sequences(encodings):
     '''
+    Vectorize encoded sequence, i.e. convert to NP array. 
+
+    Keyword arguments:
+    encodings (list) -- a list of encodings
+
+    Outputs:
+    vectorized_encodings (numpy.ndarray) -- the encoding array 
     '''
 
     vectorized_encodings = []
@@ -73,6 +87,10 @@ def add_padding(encodings, max_length):
 
     Keyword arguments:
     encodings (list) -- the sequence encodings
+    max_length (int) -- the maximal length of padded sequence
+
+    Outputs:
+    padded_encodings (numpy.ndarray) -- the padded array
     '''
 
     if isinstance(encodings, list):
@@ -144,7 +162,7 @@ def find_longest_sequence(ocr_encodings, gt_encodings):
     ocr_encodings (list) -- the OCR encodings
     gt_encodings (list) -- the GT encodings
 
-    Outpus:
+    Outputs:
     the maximum sequence length
     '''
     ocr_max_length = max([len(encoding) for encoding in ocr_encodings])
