@@ -4,13 +4,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 
-def predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_length, with_attention, device):
+def predict(input_tensor, trained_encoder, trained_decoder, seq_length, with_attention, device):
     '''
     Train one input sequence, ie. one forward pass.
 
     Keyword arguments:
     input_tensor (torch.Tensor) -- the input data
-    target_tensor (torch.Tensor) -- the target data
     trained_encoder -- the trained encoder network
     trained_decoder -- the trained decoder network
     sequence_length (int) -- the length of the sequence
@@ -34,16 +33,15 @@ def predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_l
 
         # This needs to be checked; dimensions may be different
         input_length = input_tensor.shape[0]
-        target_length = target_tensor.shape[0]
 
         # Depends on structure of input_tensor
         batch_size = input_tensor.shape[1]
 
         encoder_outputs = torch.zeros(batch_size,
-                                      target_length,
+                                      input_length,
                                       trained_encoder.hidden_size,
                                       device=device)
-
+        
         for ei in range(input_length):
 
             encoder_output, encoder_hidden, encoder_cell = trained_encoder(input_tensor[ei], encoder_hidden, encoder_cell)
@@ -63,8 +61,8 @@ def predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_l
         decoder_cell = encoder_cell
 
         #decoded_tokens = []
-        decoded_tokens = np.zeros([batch_size, target_length], dtype=np.int64)
-        topv_scores = torch.zeros([batch_size, target_length], dtype=torch.float64)
+        decoded_tokens = np.zeros([batch_size, input_length], dtype=np.int64)
+        topv_scores = torch.zeros([batch_size, input_length], dtype=torch.float64)
         #decoder_output_raw = torch.zeros((target_length, batch_size, trained_decoder.out.out_features), dtype=torch.float64)
 
         if with_attention:
@@ -108,7 +106,7 @@ def predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_l
         return decoded_tokens, topv_scores#decoder_output_raw
 
 
-def predict_detector(input_tensor, target_tensor, trained_detector, output_size, device):
+def predict_detector(input_tensor, trained_detector, output_size, device):
     with torch.no_grad():
 
         ###################
@@ -122,7 +120,7 @@ def predict_detector(input_tensor, target_tensor, trained_detector, output_size,
 
         # This needs to be checked; dimensions may be different
         input_length = input_tensor.shape[0]
-        target_length = target_tensor.shape[0]
+        #target_length = target_tensor.shape[0]
 
         # Depends on structure of input_tensor
         batch_size = input_tensor.shape[1]
@@ -132,7 +130,7 @@ def predict_detector(input_tensor, target_tensor, trained_detector, output_size,
         #                              output_size,
         #                              #trained_encoder.hidden_size,
         #                              device=device)
-        detector_outputs = torch.zeros(target_length,
+        detector_outputs = torch.zeros(input_length,
                                       batch_size,
                                       output_size,
                                       #trained_encoder.hidden_size,
@@ -174,13 +172,8 @@ def predict_iters(data_test, trained_encoder, trained_decoder, batch_size, seq_l
         # Tensor dimensions need to be checked
         input_tensor = batch[:, 0, :].to(device)
         input_tensor = torch.t(input_tensor)
-        target_tensor = batch[:, 1, :].to(device)
-        target_tensor = torch.t(target_tensor)
 
-        decoded_tokens, topv_scores = predict(input_tensor, target_tensor, trained_encoder, trained_decoder, seq_length, with_attention, device)
-
-        import pdb; pdb.set_trace()
-       
+        decoded_tokens, topv_scores = predict(input_tensor, trained_encoder, trained_decoder, seq_length, with_attention, device)     
 
         decodings.append(decoded_tokens)
 
@@ -216,7 +209,7 @@ def predict_iters_argmax(converter, testing_size, batch_size, seq_length, device
 
     return predictions, targets
 
-def predict_iters_detector(data_test, targets_test, trained_detector, batch_size, output_size, device):
+def predict_iters_detector(data_test, trained_detector, batch_size, output_size, device):
     '''
 
     '''
@@ -224,10 +217,8 @@ def predict_iters_detector(data_test, targets_test, trained_detector, batch_size
     batch_number = int(len(data_test)/batch_size)
     seq_length = data_test[0].shape[1]
     outputs = torch.zeros([batch_number, seq_length, batch_size, output_size])
-
-    #import pdb
-    #pdb.set_trace()
-    target_index = 0
+    
+    #target_index = 0
     batch_index = 0
     for batch in DataLoader(data_test, batch_size=batch_size):
         # Tensor dimensions need to be checked
@@ -235,13 +226,14 @@ def predict_iters_detector(data_test, targets_test, trained_detector, batch_size
         input_tensor = torch.t(input_tensor)
         #target_tensor = batch[:, 1, :].to(device)
         #target_tensor = torch.t(target_tensor)
-        target_tensor = torch.from_numpy(targets_test[target_index:target_index+batch_size]).to(device)
-        target_tensor = torch.t(target_tensor)
-        target_index += batch_size
+        
+        #target_tensor = torch.from_numpy(targets_test[target_index:target_index+batch_size]).to(device)
+        #target_tensor = torch.t(target_tensor)
+        #target_index += batch_size
 
         #import pdb; pdb.set_trace()
 
-        detector_outputs = predict_detector(input_tensor, target_tensor, trained_detector, output_size, device)
+        detector_outputs = predict_detector(input_tensor, trained_detector, output_size, device)
 
         outputs[batch_index] = detector_outputs
         batch_index += 1
