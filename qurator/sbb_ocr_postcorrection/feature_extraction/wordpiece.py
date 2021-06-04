@@ -22,7 +22,7 @@ class WordpieceVocabGenerator(object):
 
     def generate_vocab_counts(self, corpus):
         '''
-        Count the vocabulary counts in the corpus (GT and OCR).
+        Count the vocabulary in the corpus (GT and OCR).
 
         For GT, the wordpiece vocabulary is counted starting with
         self.max_wordpiece_length and decreasing with step size 1.
