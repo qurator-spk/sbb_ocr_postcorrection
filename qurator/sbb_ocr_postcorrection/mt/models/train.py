@@ -23,8 +23,6 @@ def train_detector(input_tensor, target_tensor, detector, optimizer,
     detector -- the detector network
     optimizer -- the optimization algorithm
     criterion -- the loss function
-    teacher_forcing_ratio (float) -- the ratio according to which
-                                     teacher forcing is used
     device (str) -- the device used for training (cpu/cuda)
 
     Outputs:
@@ -94,10 +92,12 @@ def train_iters_detector(model_path, loss_path, data_train, targets_train,
 
     Keyword arguments:
     data_train (Custom PyTorch Dataset) -- the training data
+    targets_train -- the training targets
     detector -- the encoder network
     n_epochs (int) -- the number of training epochs
     batch_size (int) -- the batch size
     learning_rate (float) -- the learning rate
+    loss_weights (float) -- the loss weights 
     print_every (int) -- defines print status intervall
     plot_every (int) -- defines plotting intervall
     device (str) -- the device used for training
@@ -185,10 +185,10 @@ def train_gan(input_tensor, target_tensor, generator, discriminator,
     Keyword arguments:
     input_tensor (torch.Tensor) -- the input data
     target_tensor (torch.Tensor) -- the target data
-    encoder -- the encoder network
-    decoder -- the decoder network
-    encoder_optimizer -- the encoder optimization algorithm
-    decoder_optimizer -- the decoder optimization algorithm
+    generator -- the generator network
+    discriminator -- the discriminator network
+    generator_optimizer -- the generator optimization algorithm
+    discriminator_optimizer -- the discriminator optimization algorithm
     criterion -- the loss function
     teacher_forcing_ratio (float) -- the ratio according to which
                                      teacher forcing is used
