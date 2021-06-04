@@ -37,6 +37,7 @@ setup(
             'predict-argmax-converter=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_argmax_converter',
             'predict-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_detector',
             'predict-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_translator',
+            'run-two-step-pipeline=qurator.sbb_ocr_postcorrection.mt.cli_correct:run_two_step_pipeline',
             'train-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_detector',
             'train-argmax-converter=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_argmax_converter',
             'train-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_translator'
