@@ -6,6 +6,7 @@ import json
 import numpy as np
 import os
 import pickle
+from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix
 import torch
 
 from .models.error_detector import DetectorLSTM, DetectorGRU
@@ -18,10 +19,11 @@ from .models.train import  train_iters_detector, train_iters_gan, \
     train_iters_argmax, train_iters_seq2seq
 
 from qurator.sbb_ocr_postcorrection.data_structures import OCRCorrectionDataset
-from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import decode_sequence
+from qurator.sbb_ocr_postcorrection.feature_extraction.encoding import add_padding, encode_sequence, decode_sequence
+from qurator.sbb_ocr_postcorrection.feature_extraction.tokenization import WordpieceTokenizer
 from qurator.sbb_ocr_postcorrection.helpers import find_max_mod
 from qurator.sbb_ocr_postcorrection.preprocessing.database import \
-    load_alignments_from_sqlite
+    load_alignments_from_sqlite, save_alignments_to_sqlite
 import qurator.dinglehopper.character_error_rate as character_error_rate
 from qurator.dinglehopper.align import seq_align
 
@@ -35,9 +37,9 @@ def detect_errors(ocr_dir, targets_dir, targets_char_dir, error_pred_dir):
     '''
     \b
     Arguments:
-    ocr-dir --
-    targets-dir --
-    targets-char-dir --
+    ocr-dir -- The path to the OCR data
+    targets-dir -- The path to the targets
+    targets-char-dir -- The path to the character target 
     error-pred-dir --
     '''
 
@@ -471,7 +473,7 @@ def evaluate_loss(loss_dir):
     '''
     \b
     Arguments:
-    loss-dir --
+    loss-dir -- The path to the loss file
     '''
 
     # make paths absolute
@@ -501,10 +503,10 @@ def evaluate_translator(align_dir, pred_dir, ocr_dir, gt_dir, batch_size):
     '''
     \b
     Arguments:
-    align-dir --
-    pred-dir --
-    ocr-dir --
-    gt-dir --
+    align-dir -- The path to the aligned data
+    pred-dir -- The path to the predicted, i.e. corrected, data
+    ocr-dir -- The path to the OCR data
+    gt-dir -- The path to the GT data
     '''
 
     # make paths absolute
@@ -686,16 +688,18 @@ def predict_argmax_converter(model_dir, hyper_params_dir, out_dir, testing_size)
 @click.argument('gt-dir', type=click.Path(exists=True))
 @click.argument('targets-dir', type=click.Path(exists=True))
 @click.argument('model-dir', type=click.Path(exists=True))
+@click.argument('hyper-params-dir', type=click.Path(exists=True))
 @click.argument('pred-dir', type=click.Path(exists=True))
-def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, pred_dir):
+def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, hyper_params_dir, pred_dir):
     '''
     \b
     Arguments:
-    ocr-dir --
-    gt-dir --
-    targets-dir --
-    model-dir --
-    pred-dir --
+    ocr-dir -- The path to the OCR data
+    gt-dir -- The path to the GT data
+    targets-dir -- The path to the targets
+    model-dir -- The path to the trained model
+    hyper-params-dir -- The path to the hyperparameter file 
+    pred-dir -- The output path for the error predictions
     '''
 
     # make paths absolute
@@ -703,13 +707,19 @@ def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, pred_dir):
     gt_dir = os.path.abspath(gt_dir)
     targets_dir = os.path.abspath(targets_dir)
     model_dir = os.path.abspath(model_dir)
+    hyper_params_dir = os.path.abspath(hyper_params_dir)
     pred_dir = os.path.abspath(pred_dir)
 
     in_dir, model_file = os.path.split(model_dir)
     model_file, model_ext = os.path.splitext(model_file)
 
-    hyper_params_dir = os.path.join(in_dir, 'hyper_params'+model_file+'.json')
+    #hyper_params_dir = os.path.join(in_dir, 'hyper_params'+model_file+'.json')
 
+    with io.open(hyper_params_dir, mode='r') as f_in:
+        hyper_params = json.load(f_in)
+    
+    batch_size = hyper_params['batch_size']
+    
     print('\n1. LOAD DATA (ENCODINGS, ENCODING MAPPINGS)')
 
     ocr_encodings = np.load(ocr_dir, allow_pickle=True)
@@ -748,9 +758,6 @@ def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, pred_dir):
     print('Dataset size: {}'.format(len(dataset)))
     #print('Training size: {}'.format(len(dataset_training)))
 
-    with io.open(hyper_params_dir, mode='r') as f_in:
-        hyper_params = json.load(f_in)
-
     input_size = hyper_params['input_size']
     hidden_size = hyper_params['hidden_size']
     output_size = hyper_params['output_size']
@@ -758,7 +765,7 @@ def predict_detector(ocr_dir, gt_dir, targets_dir, model_dir, pred_dir):
     seq_length = hyper_params['seq_length']
     n_layers = hyper_params['n_layers']
     dropout = hyper_params['dropout_prob']
-    bidirectional = hyper_params['bidir']
+    bidir = hyper_params['bidir']
     activation = hyper_params['activation']
     device = hyper_params['device']
 
@@ -791,12 +798,12 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
     '''
     \b
     Arguments:
-    ocr-dir --
-    gt-dir --
-    model-dir --
-    hyper-params-dir --
-    code-to-token-dir --
-    out-dir --
+    ocr-dir -- The path to the OCR data
+    gt-dir -- The path to the GT data
+    model-dir -- The path for the trained models
+    hyper-params-dir -- The path to the hyperparameter file  
+    code-to-token-dir -- The path to the encoding-token mapping 
+    out-dir -- The path to the output directory
     '''
 
     # make paths absolute
@@ -871,8 +878,6 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
 
     decodings = predict_iters(dataset, encoder, decoder, batch_size, seq_length, with_attention, device=device)
 
-    import pdb; pdb.set_trace()
-
     print('\n5. DECODE SEQUENCES')
 
     decoded_sequences = []
@@ -922,18 +927,555 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
 ################################################################################
 @click.command()
 @click.argument('ocr-dir', type=click.Path(exists=True))
+#@click.argument('gt-dir', type=click.Path(exists=True))
+@click.argument('aligned-dir', type=click.Path(exists=True))
+@click.argument('detector-model-dir', type=click.Path(exists=True))
+@click.argument('translator-model-dir', type=click.Path(exists=True))
+#@click.argument('hyper-params-dir', type=click.Path(exists=True))
+#@click.argument('code-to-token-dir', type=click.Path(exists=True))
+@click.argument('out-dir', type=click.Path(exists=True))
+def run_two_step_pipeline(ocr_dir, aligned_dir, detector_model_dir, 
+    translator_model_dir, out_dir):
+    '''
+    \b
+    Arguments:
+    ocr-dir -- The path to the OCR data
+    detector-model-dir -- The path for the trained detector model
+    translator-model-dir -- The path for the trained translator model
+    hyper-params-dir -- The path to the hyperparameter file  
+    code-to-token-dir -- The path to the encoding-token mapping 
+    out-dir -- The path to the output directory
+    '''
+
+    home_dir = '/home/robin'
+
+
+    # path definitions
+    #alignments_path = home_dir + '/Qurator/used_data/preproc_data/dta/testing_set_sliding_window_german_biased_2charges_170920.db'
+
+    #ocr_encodings_testing_path = home_dir + '/Qurator/used_data/features/dta/encoded_testing_ocr_sliding_window_3_2charges_170920.npy'
+    #gt_encodings_testing_path = home_dir + '/Qurator/used_data/features/dta/encoded_testing_gt_sliding_window_3_2charges_170920.npy'
+
+    detector_token_to_code_path = home_dir + '/Qurator/used_data/features/dta/token_to_code_mapping_sliding_window_3_150620.json'     #token_to_code_mapping_3_2charges_110920.json'
+    detector_code_to_token_path = home_dir + '/Qurator/used_data/features/dta/code_to_token_mapping_sliding_window_3_150620.json'     #code_to_token_mapping_3_2charges_110920.json'
+    translator_token_to_code_path = home_dir + '/Qurator/used_data/features/dta/token_to_code_mapping_sliding_window_3_charge2_080920.json' #token_to_code_mapping_sliding_window_3_150620.json'
+    translator_code_to_token_path = home_dir + '/Qurator/used_data/features/dta/code_to_token_mapping_sliding_window_3_charge2_080920.json'
+
+    targets_testing_path = home_dir + '/Qurator/used_data/features/dta/detector_target_testing_sliding_window_german_3_2charges_170920.npy'
+    targets_testing_char_path = home_dir + '/Qurator/used_data/features/dta/detector_target_testing_sliding_window_german_char_2charges_170920.npy'
+
+    #detector_model_path = home_dir + '/Qurator/used_data/models/models_detector_sliding_window_512_3L_LSTM_bidirec_3_070920/trained_detector_model_512_3L_LSTM_bidirec_070920_138.pt'
+    #translator_model_path = home_dir + '/Qurator/used_data/models/models_translator_sliding_window_256_1L_LSTM_monodirec_3_100920/trained_translator_model_256_1L_LSTM_monodirec_100920_876.pt'
+
+    #error_predictions_testing_path = home_dir + '/Qurator/used_data/output_data/predictions_pipe_detector_testing_sliding_window_512_3L_LSTM_bidirec_3_170920_138.pt'
+
+    #ocr_encodings_incorrect_path = home_dir + '/Qurator/used_data/output_data/encoded_incorrect_ocr_pipe_sliding_window_3_2charges_170920.npy'
+    #gt_encodings_incorrect_path = home_dir + '/Qurator/used_data/output_data/encoded_incorrect_gt_pipe_sliding_window_3_2charges_170920.npy'
+    #ocr_encodings_correct_path = home_dir + '/Qurator/used_data/output_data/encoded_correct_ocr_pipe_sliding_window_3_2charges_170920.npy'
+    #gt_encodings_correct_path = home_dir + '/Qurator/used_data/output_data/encoded_correct_gt_pipe_sliding_window_3_2charges_170920.npy'
+
+    #ocr_sequences_incorrect_path = home_dir + '/Qurator/used_data/output_data/sequences_incorrect_ocr_pipe_sliding_window_3_2charges_170920.pkl'
+    #gt_sequences_incorrect_path = home_dir + '/Qurator/used_data/output_data/sequences_incorrect_gt_pipe_sliding_window_3_2charges_170920.pkl'
+    #ocr_sequences_correct_path = home_dir + '/Qurator/used_data/output_data/sequences_correct_ocr_pipe_sliding_window_3_2charges_170920.pkl'
+    #gt_sequences_correct_path = home_dir + '/Qurator/used_data/output_data/sequences_correct_gt_pipe_sliding_window_3_2charges_170920.pkl'
+
+    ocr_sequences_incorrect_encoded_path = home_dir + '/Qurator/used_data/output_data/encoded_incorrect_ocr_pipe_sliding_window_3_2charges_hack_170920.npy'
+    gt_sequences_incorrect_encoded_path = home_dir + '/Qurator/used_data/output_data/encoded_incorrect_gt_pipe_sliding_window_3_2charges_hack_170920.npy'
+    ocr_sequences_correct_encoded_path = home_dir + '/Qurator/used_data/output_data/encoded_correct_ocr_pipe_sliding_window_3_2charges_hack_170920.npy'
+    gt_sequences_correct_encoded_path = home_dir + '/Qurator/used_data/output_data/encoded_correct_gt_pipe_sliding_window_3_2charges_hack_170920.npy'
+
+    #alignments_incorrect_path = home_dir + '/Qurator/used_data/preproc_data/dta/testing_set_incorrect_sliding_window_german_biased_2charges_170920.db'
+    #alignments_correct_path = home_dir + '/Qurator/used_data/preproc_data/dta/testing_set_correct_sliding_window_german_biased_2charges_170920.db'
+
+
+    #translator_ocr_sequences_path = home_dir + '/Qurator/used_data/features/dta/ocr_testing_sequences_pipe_translator_256_1L_LSTM_monodirec_2charges_170920_876.npy'
+    #translator_decoded_sequences_path = home_dir + '/Qurator/used_data/output_data/decoded_testing_sequences_pipe_translator_256_1L_LSTM_monodirec_2charges_170920_876.pkl' #decoded_sequences_translator_256_1L_LSTM_monodirec_onestep_100920_970.pkl'
+    #translator_pred_sequences_path = home_dir + '/Qurator/used_data/output_data/pred_testing_sequences_pipe_translator_256_1L_LSTM_monodirec_2charges_170920_876.pkl' #pred_sequences_translator_256_1L_LSTM_monodirec_onestep_100920_970.pkl'
+    #translator_gt_sequences_path = home_dir + '/Qurator/used_data/output_data/gt_testing_sequences_pipe_translator_256_1L_LSTM_monodirec_2charges_170920_876.pkl' #gt_sequences_translator_256_1L_LSTM_monodirec_onestep_100920_970.pkl'
+
+
+    print('\n1. LOAD DATA (ALIGNMENTS, ENCODINGS, ENCODING MAPPINGS)')
+
+    error_predictions_dir = os.path.join(out_dir, 'error_predictions.pt')
+    alignments_incorrect_dir = os.path.join(out_dir, 'alignments_incorrect.db')
+    alignments_correct_dir = os.path.join(out_dir, 'alignments_correct.db')
+
+    ocr_encodings_incorrect_dir = os.path.join(out_dir, 'encoded_ocr_incorrect.npy')
+    #gt_encodings_incorrect_dir = os.path.join(out_dir, 'encoded_gt_incorrect.npy')
+    ocr_encodings_correct_dir = os.path.join(out_dir, 'encoded_ocr_correct.npy')
+    #gt_encodings_correct_dir = os.path.join(out_dir, 'encoded_gt_correct.npy')
+
+    ocr_sequences_incorrect_dir = os.path.join(out_dir, 'sequences_ocr_incorrect.pkl')
+    #gt_sequences_incorrect_dir = os.path.join(out_dir, 'sequences_gt_incorrect.pkl')
+    ocr_sequences_correct_dir = os.path.join(out_dir, 'sequences_ocr_correct.pkl')
+    #gt_sequences_correct_dir = os.path.join(out_dir, 'sequences_gt_correct.pkl')
+
+    translator_ocr_sequences_dir = os.path.join(out_dir, 'translator_ocr_sequences.pkl')
+    translator_decoded_sequences_dir = os.path.join(out_dir, 'translator_decoded_sequences.pkl')
+    translator_pred_sequences_dir = os.path.join(out_dir, 'translator_pred_sequences.pkl')
+    #translator_gt_sequences_dir = os.path.join(out_dir, 'translator_gt_sequences.pkl')
+
+    detector_dir = os.path.split(detector_model_dir)[0]
+    detector_hyper_params_dir = os.path.join(detector_dir, 'hyper_params_detector.json')
+    translator_dir = os.path.split(translator_model_dir)[0]
+    translator_hyper_params_dir = os.path.join(translator_dir, 'hyper_params_translator.json')
+
+    with io.open(detector_hyper_params_dir, mode='r') as f_in:
+        hyper_params_detector = json.load(f_in)
+    with io.open(translator_hyper_params_dir, mode='r') as f_in:
+        hyper_params_translator = json.load(f_in)
+
+    ocr_encodings = np.load(ocr_dir, allow_pickle=True)
+    #gt_encodings = np.load(gt_dir, allow_pickle=True)
+
+    batch_size = hyper_params_detector['batch_size']
+
+    size_dataset = find_max_mod(len(ocr_encodings), batch_size)
+
+    size_dataset = 1000
+
+    ocr_encodings = ocr_encodings[:size_dataset]
+    #gt_encodings = gt_encodings[:size_dataset]
+
+    #assert ocr_encodings.shape == gt_encodings.shape
+
+    with io.open(detector_token_to_code_path, mode='r') as f_in:
+        detector_token_to_code_mapping = json.load(f_in)
+    with io.open(detector_code_to_token_path, mode='r') as f_in:
+        detector_code_to_token_mapping = json.load(f_in)
+
+    alignments, alignments_as_df, alignments_headers = load_alignments_from_sqlite(aligned_dir, size='total')
+
+    alignments = alignments[:size_dataset]
+
+    print('Alignments: {}'.format(len(alignments)))
+
+    print('OCR testing encoding dimensions: {}'.format(ocr_encodings.shape))
+    #print('GT testing encoding dimensions: {}'.format(gt_encodings.shape))
+
+    # add 1 for additional 0 padding, i.e. padded 0 are treated as vocab
+    detector_encoding_size = len(detector_token_to_code_mapping) + 1
+    print('Token encodings: {}'.format(detector_encoding_size))
+
+    #detector_targets_testing = np.load(targets_testing_path)
+    #detector_targets_testing = detector_targets_testing[0:size_dataset]
+    #print('Target testing dimensions: {}'.format(detector_targets_testing.shape))
+
+    detector_targets_char_testing = np.load(targets_testing_char_path)
+    detector_targets_char_testing = detector_targets_char_testing[0:size_dataset]
+
+    print('\n2. INITIALIZE DETECTOR DATASET OBJECT')
+
+    #detector_dataset = OCRCorrectionDataset(ocr_encodings, gt_encodings)
+    detector_dataset = OCRCorrectionDataset(ocr_encodings)
+
+
+    print('Testing size: {}'.format(len(detector_dataset)))
+    #print('Training size: {}'.format(len(dataset_training)))
+
+    detector_input_size = detector_encoding_size
+    detector_hidden_size = hyper_params_detector['hidden_size']
+    detector_output_size = hyper_params_detector['output_size']
+    detector_batch_size = hyper_params_detector['batch_size']
+    seq_length = hyper_params_detector['seq_length']
+    detector_num_layers = hyper_params_detector['n_layers']
+    detector_dropout = hyper_params_detector['dropout_prob']
+    detector_bidirectional = hyper_params_detector['bidir']
+    detector_activation = hyper_params_detector['activation']
+    detector_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    detector = DetectorLSTM(detector_input_size, detector_hidden_size, detector_output_size, detector_batch_size, detector_num_layers, bidirectional=detector_bidirectional, activation=detector_activation, device=detector_device).to(detector_device)
+
+    detector_checkpoint = torch.load(detector_model_dir, map_location=detector_device)
+
+    detector.load_state_dict(detector_checkpoint['trained_detector']) # trained_detector
+
+    detector.eval()
+
+    print('\n4. PREDICT ERRORS')
+
+    error_predictions = predict_iters_detector(detector_dataset, detector, detector_batch_size, detector_output_size, device=detector_device)
+
+    torch.save(error_predictions, error_predictions_dir)
+################################################################################
+
+    # definition: conversion function
+    def convert_softmax_prob_to_label(batch, threshold=0.8):
+        seq_length = batch.shape[0]
+        batch_size = batch.shape[1]
+        batch_predicted_labels = torch.zeros([seq_length, batch_size])
+        #batch_predicted_labels = torch.zeros([batch_size, seq_length])
+
+        for si in range(seq_length):
+            for bi in range(batch_size):
+                max_index = torch.argmax(batch[si, bi])
+
+                #import pdb; pdb.set_trace()
+                if max_index == 2:
+                    if batch[si, bi][max_index] >= threshold:
+                        batch_predicted_labels[si, bi] = max_index.item()
+                    else:
+                        batch_predicted_labels[si, bi] = 1
+                else:
+                    batch_predicted_labels[si, bi] = max_index.item()
+        #for bi in range(batch_size):
+        #    for si in range(seq_length):
+        #        max_index = torch.argmax(batch[bi, si])
+        #        batch_predicted_labels[bi, si] = max_index
+
+        return batch_predicted_labels
+
+    target_index = 0
+
+    predicted_labels_total = []
+    predicted_labels_total = np.zeros((size_dataset, seq_length))
+
+    batch_id = 0
+    print('\n5. REFORMATTING TOTAL PREDICTIONS AND SENTENCE-WISE:')
+
+    for predicted_batch in error_predictions:
+        #print('Batch ID: {}'.format(batch_id))
+        batch_id += 1
+
+        #target_tensor = torch.from_numpy(targets_testing[target_index:target_index+batch_size]).to(device)
+        #target_tensor = torch.t(target_tensor)
+
+        batch_predicted_labels = convert_softmax_prob_to_label(predicted_batch, threshold=0.99)
+        batch_predicted_labels = torch.t(batch_predicted_labels).type(torch.int64).numpy()
+
+        predicted_labels_total[target_index:(target_index+detector_batch_size), :] = batch_predicted_labels
+
+        target_index += detector_batch_size
+
+    predicted_sequence_labels = np.zeros((size_dataset, 1))
+    for seq_i, sequence in enumerate(predicted_labels_total):
+        if 2 in sequence:
+            predicted_sequence_labels[seq_i] = 1
+        else:
+            predicted_sequence_labels[seq_i] = 0
+
+    target_sequence_labels = np.zeros((len(detector_targets_char_testing), 1))
+    for seq_i, sequence in enumerate(detector_targets_char_testing):
+        if 2 in sequence:
+            target_sequence_labels[seq_i] = 1
+        else:
+            target_sequence_labels[seq_i] = 0
+
+    average = 'binary'
+
+    f1 = f1_score(target_sequence_labels, predicted_sequence_labels, average=average)
+    prec = precision_score(target_sequence_labels, predicted_sequence_labels, average=average)
+    recall = recall_score(target_sequence_labels, predicted_sequence_labels, average=average)
+
+    conf_matrix = confusion_matrix(target_sequence_labels, predicted_sequence_labels, labels=[0,1])
+
+    print('Target sum of erroneous sequences: {}'.format(np.sum(target_sequence_labels)))
+    print('Predicted sum of erroneous sequences: {}'.format(np.sum(predicted_sequence_labels)))
+
+    print('F1 score: {}'.format(f1))
+    print('Precision score: {}'.format(prec))
+    print('Recall score: {}'.format(recall))
+
+    print('Confusion matrix:\n{}'.format(conf_matrix))
+################################################################################
+
+    print('\n5. CREATE DATASET FOR TRANSLATION:')
+
+    # based on detector output
+    alignments_correct = []
+    alignments_incorrect = []
+    ocr_encodings_correct = []
+    #gt_encodings_correct = []
+    ocr_encodings_incorrect = []
+    #gt_encodings_incorrect = []
+    for alignment, sequence_label, ocr_encoding in zip(alignments, target_sequence_labels, ocr_encodings):# gt_encodings):
+        if sequence_label == 1:
+            ocr_encodings_incorrect.append(ocr_encoding)
+    #        gt_encodings_incorrect.append(gt_encoding)
+            alignments_incorrect.append(alignment)
+        elif sequence_label == 0:
+            ocr_encodings_correct.append(ocr_encoding)
+    #        gt_encodings_correct.append(gt_encoding)
+            alignments_correct.append(alignment)
+    
+    save_alignments_to_sqlite(alignments_incorrect, path=alignments_incorrect_dir, append=False)
+    save_alignments_to_sqlite(alignments_correct, path=alignments_correct_dir, append=False)
+
+    ocr_encodings_incorrect = np.array(ocr_encodings_incorrect)
+    #gt_encodings_incorrect = np.array(gt_encodings_incorrect)
+    ocr_encodings_correct = np.array(ocr_encodings_correct)
+    #gt_encodings_correct = np.array(gt_encodings_correct)
+
+    np.save(ocr_encodings_incorrect_dir, ocr_encodings_incorrect)
+    #np.save(gt_encodings_incorrect_dir, gt_encodings_incorrect)
+    np.save(ocr_encodings_correct_dir, ocr_encodings_correct)
+    #np.save(gt_encodings_correct_dir, gt_encodings_correct)
+
+    print('OCR encoding dimensions (incorrect): {}'.format(ocr_encodings_incorrect.shape))
+    #print('GT encoding dimensions (incorrect): {}'.format(gt_encodings_incorrect.shape))
+
+    # just placeholders for the moment
+    gt_encodings_incorrect = None
+    gt_encodings_correct = None
+
+    encoding_arrays = [ocr_encodings_incorrect, gt_encodings_incorrect, ocr_encodings_correct, gt_encodings_correct]
+
+    detector_output_sequences = [[], [], [], []]
+
+    for i, encoding_array in enumerate(encoding_arrays):
+        if encoding_array is not None:
+            for sequence_encoding in encoding_array:
+                ocr_sequence = []
+                for e in sequence_encoding:
+                    if e == 0:
+                        break
+                    ocr_sequence.append(detector_code_to_token_mapping[str(e)])
+                ocr_sequence_filtered = []
+                for o in ocr_sequence:
+                    if o == '<SOS>' or o == '<EOS>':
+                        continue
+                    elif o == '<WSC>':
+                        ocr_sequence_filtered.append(' ')
+                    elif o == '<UNK>':
+                        continue
+                    #elif o == 0:
+                    #    break
+                    else:
+                        ocr_sequence_filtered.append(o)
+
+                detector_output_sequences[i].append(''.join(ocr_sequence_filtered))
+
+    with io.open(ocr_sequences_incorrect_dir, mode='wb') as f_out:
+        pickle.dump(detector_output_sequences[0], f_out)
+    #with io.open(gt_sequences_incorrect_dir, mode='wb') as f_out:
+    #    pickle.dump(detector_output_sequences[1], f_out)
+    with io.open(ocr_sequences_correct_dir, mode='wb') as f_out:
+        pickle.dump(detector_output_sequences[2], f_out)
+    #with io.open(gt_sequences_correct_dir, mode='wb') as f_out:
+    #    pickle.dump(detector_output_sequences[3], f_out)
+        
+################################################################################
+
+    #ocr_encodings_incorrect_hack = np.load(ocr_sequences_incorrect_encoded_path)
+    #gt_encodings_incorrect_hack = np.load(gt_sequences_incorrect_encoded_path)
+    #ocr_encodings_correct_hack = np.load(ocr_sequences_correct_encoded_path)
+    #gt_encodings_correct_hack = np.load(gt_sequences_correct_encoded_path)
+################################################################################
+
+    print('\n3. TRANSLATOR MODEL')
+
+    with io.open(translator_token_to_code_path, mode='r') as f_in:
+        translator_token_to_code_mapping = json.load(f_in)
+    with io.open(translator_code_to_token_path, mode='r') as f_in:
+        translator_code_to_token_mapping = json.load(f_in)
+
+################################################################################
+
+    tok = WordpieceTokenizer(translator_token_to_code_mapping, token_delimiter="<WSC>", unknown_char="<UNK>")
+
+    import pdb; pdb.set_trace()
+
+    ocr_encodings_incorrect_hack = []
+
+    for i, alignment in enumerate(detector_output_sequences[0]):
+
+        tokenized_ocr = tok.tokenize(alignment, False)
+        #tokenized_gt = tok.tokenize(alignment[4], False)
+
+        ocr_encoding = encode_sequence(tokenized_ocr, translator_token_to_code_mapping)
+        #gt_encoding = encode_sequence(tokenized_gt, translator_token_to_code_mapping)
+
+        ocr_encodings_incorrect_hack.append(ocr_encoding)
+        #translator_training_gt_encodings.append(gt_encoding)
+    
+    ocr_encodings_incorrect_hack = add_padding(ocr_encodings_incorrect_hack, seq_length)
+
+    import pdb; pdb.set_trace()
+
+################################################################################
+
+    # add 1 for additional 0 padding, i.e. padded 0 are treated as vocab
+    translator_encoding_size = len(translator_token_to_code_mapping) + 1
+    print('Token encodings: {}'.format(translator_encoding_size))
+
+    print('\n3.1. INITIALIZE DATASET OBJECT')
+
+    data_incorrect_size = ocr_encodings_incorrect.shape[0]
+
+    # define data size that can be cleanly divided batch_size
+    if data_incorrect_size >= batch_size:
+        data_incorrect_size -= (data_incorrect_size % batch_size)
+
+    ocr_encodings_incorrect_hack = ocr_encodings_incorrect_hack[:data_incorrect_size]
+    #gt_encodings_incorrect_hack = gt_encodings_incorrect_hack[:data_incorrect_size]
+
+    #translator_dataset_testing = OCRCorrectionDataset(ocr_encodings_incorrect_hack, gt_encodings_incorrect_hack)
+    translator_dataset_testing = OCRCorrectionDataset(ocr_encodings_incorrect_hack)
+
+    print('Testing size: {}'.format(len(translator_dataset_testing)))
+
+    print('\n3.2. DEFINE HYPERPARAMETERS AND LOAD ENCODER/DECODER NETWORKS')
+
+    translator_input_size = translator_encoding_size
+    translator_hidden_size = hyper_params_translator['hidden_size']
+    translator_output_size = translator_input_size
+    translator_batch_size = hyper_params_translator['batch_size']
+    translator_seq_length = hyper_params_translator['seq_length']
+    translator_num_layers = hyper_params_translator['n_layers']
+    translator_dropout = hyper_params_translator['dropout_prob']
+    translator_with_attention = hyper_params_translator['with_attention']
+    translator_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    encoder = EncoderLSTM(translator_input_size, translator_hidden_size, translator_batch_size, translator_num_layers, device=translator_device)
+
+    if translator_with_attention:
+        decoder = AttnDecoderLSTM(translator_hidden_size, translator_output_size, translator_batch_size, translator_seq_length, num_layers=translator_num_layers, dropout=translator_dropout, device=translator_device)
+    else:
+        decoder = DecoderLSTM(translator_hidden_size, translator_output_size, translator_batch_size, device=translator_device)
+
+    translator_checkpoint = torch.load(translator_model_dir, map_location=translator_device)
+    encoder.load_state_dict(translator_checkpoint['trained_encoder'])
+    decoder.load_state_dict(translator_checkpoint['trained_decoder'])
+
+    encoder.eval()
+    decoder.eval()
+
+    print('\n3.3. PREDICT SEQUENCES')
+
+    translator_decodings = predict_iters(translator_dataset_testing, encoder, decoder, translator_batch_size, translator_seq_length, translator_with_attention, device=translator_device)
+
+    print('\n3.4. DECODE SEQUENCES')
+
+    translator_decoded_sequences = []
+    translator_pred_sequences = []
+    for decoded_batch in translator_decodings:
+        for decoding in decoded_batch:
+            decoded_sequence, joined_sequence = decode_sequence(list(decoding), translator_code_to_token_mapping)
+            translator_decoded_sequences.append(decoded_sequence)
+            translator_pred_sequences.append(joined_sequence)
+
+    with io.open(translator_decoded_sequences_dir, mode='wb') as f_out:
+        pickle.dump(translator_decoded_sequences, f_out)
+    with io.open(translator_pred_sequences_dir, mode='wb') as f_out:
+        pickle.dump(translator_pred_sequences, f_out)
+
+    #translator_gt_sequences = []
+    #for e in gt_encodings_incorrect: # default: gt_encodings_subset
+    #    decoded_sequence, joined_sequence = decode_sequence(list(e), translator_code_to_token_mapping)
+    #    translator_gt_sequences.append(joined_sequence)
+
+    #with io.open(translator_gt_sequences_dir, mode='wb') as f_out:
+    #    pickle.dump(translator_gt_sequences, f_out)
+
+    translator_ocr_sequences = []
+    for o in ocr_encodings_incorrect:
+        ocr_sequence = []
+        for e in o:
+            if e == 0:
+                break
+            ocr_sequence.append(translator_code_to_token_mapping[str(e)])
+        ocr_sequence_filtered = []
+        for o in ocr_sequence:
+            if o == '<SOS>' or o == '<EOS>':
+                continue
+            elif o == '<WSC>':
+                ocr_sequence_filtered.append(' ')
+            elif o == '<UNK>':
+                continue
+            #elif o == 0:
+            #    break
+            else:
+                ocr_sequence_filtered.append(o)
+
+        translator_ocr_sequences.append(''.join(ocr_sequence_filtered))
+
+    with io.open(translator_ocr_sequences_dir, mode='wb') as f_out:
+        pickle.dump(translator_ocr_sequences, f_out)
+################################################################################
+#
+# The part below compares corrected OCR with GT; not needed for correction
+# 
+################################################################################
+    #print('\n3.5. COMPARISON WITH GT')
+
+    #ocr_cer = []
+    #for a in alignments:
+    #    ocr_cer.append(a[5])
+
+    #pred_cer = []
+    #ocr_cer_filtered = []
+    #i = 0
+    #for pred, gt, o_cer in zip(translator_pred_sequences, translator_gt_sequences, ocr_cer):
+
+    #    #if not (o_cer >= 0.0 and o_cer < 0.02):
+    #    #    continue
+
+    #    aligned_sequence = seq_align(pred, gt)
+    #    aligned_pred = []
+    #    aligned_gt = []
+    #    for alignment in aligned_sequence:
+    #        if alignment[0] == None:
+    #            aligned_pred.append(' ')
+    #        else:
+    #            aligned_pred.append(alignment[0])
+    #        if alignment[1] == None:
+    #            aligned_gt.append(' ')
+    #        else:
+    #            aligned_gt.append(alignment[1])
+    #    aligned_pred = ''.join(aligned_pred)
+    #    aligned_gt = ''.join(aligned_gt)
+    #    assert len(aligned_pred) == len(aligned_gt)
+
+    #    p_cer = character_error_rate(aligned_pred, aligned_gt)
+
+    #    pred_cer.append(p_cer)
+    #    ocr_cer_filtered.append(o_cer)
+
+    #    if (i+1) % 10000 == 0:
+    #        print(i+1)
+    #    i += 1
+
+    #print('OCR CER: {}'.format(np.mean(ocr_cer_filtered)))
+    #print('Pred CER: {}'.format(np.mean(pred_cer)))
+
+    #print('\n3.6. FALSE CORRECTIONS RATIO')
+    #false_corrections_ratio = []
+    #for ocr, gt, pred in zip(translator_ocr_sequences, translator_gt_sequences, translator_pred_sequences):
+    #    if not len(ocr) == len(gt) == len(pred):
+    #        max_length = max(len(ocr), len(gt), len(pred))
+
+    #        if not (len(ocr) - max_length) == 0:
+    #            ocr += (abs((len(ocr) - max_length)) * ' ')
+    #        if not (len(gt) - max_length) == 0:
+    #            gt += (abs((len(gt) - max_length)) * ' ')
+    #        if not (len(pred) - max_length) == 0:
+    #            pred += (abs((len(pred) - max_length)) * ' ')
+
+    #        assert len(ocr) == len(gt) == len(pred)
+
+    #    false_corrections_count = 0
+    #    for o, g, p in zip(ocr, gt, pred):
+    #        if (o == g) and p != g:
+    #            false_corrections_count += 1
+    #    false_corrections_ratio.append(false_corrections_count/len(pred))
+
+    #print('False corrections ratio: {}'.format(np.mean(false_corrections_ratio)))
+
+################################################################################
+@click.command()
+@click.argument('ocr-dir', type=click.Path(exists=True))
 @click.argument('gt-dir', type=click.Path(exists=True))
 @click.argument('targets-dir', type=click.Path(exists=True))
 @click.argument('model-out-dir', type=click.Path(exists=True))
 @click.argument('token-to-code-dir', type=click.Path(exists=True)) #only needed for encoding_size; maybe find alternative
-@click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture.')
-@click.option('--batch-size', default=200, help='The training batch size.')
-@click.option('--n-epochs', default=1000, help='The number of training epochs.')
-@click.option('--lr', default=0.0001, help='The learning rate.')
-@click.option('--node-type', default='lstm', help='The RNN type (LSTM/GRU)')
-@click.option('--n-layers', default=2, help='The number of RNN layers.')
-@click.option('--bidir/--no-bidir', default=False, help='--bidir: Train model bidirectional; --no-bidir: Train model monodirectional.')
-@click.option('--dropout-prob', default=0.2, help='The dropout probability.')
+@click.option('--hidden-size', default=512, help='Hidden dimension of RNN architecture. (default: 512)')
+@click.option('--batch-size', default=200, help='The training batch size. (default: 200)')
+@click.option('--n-epochs', default=1000, help='The number of training epochs. (default: 1000)')
+@click.option('--lr', default=0.0001, help='The learning rate. (default: 0.0001)')
+@click.option('--node-type', default='lstm', help='The RNN type (LSTM/GRU). (default: lstm)')
+@click.option('--n-layers', default=2, help='The number of RNN layers. (default: 2)')
+@click.option('--bidir/--no-bidir', default=False, help='--bidir: Train model bidirectional; --no-bidir: Train model monodirectional. (default: false)')
+@click.option('--dropout-prob', default=0.2, help='The dropout probability. (default: 0.2)')
 def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_dir,
                    hidden_size, batch_size, n_epochs, lr, node_type, n_layers,
                    bidir, dropout_prob):
@@ -1019,7 +1561,7 @@ def train_detector(ocr_dir, gt_dir, targets_dir, model_out_dir, token_to_code_di
 
     hyper_params = {
         'input_size': input_size,
-        'hidden_size:': hidden_size,
+        'hidden_size': hidden_size,
         'output_size': output_size,
         'seq_length': seq_length,
         'batch_size': batch_size,
