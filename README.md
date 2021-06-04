@@ -84,3 +84,9 @@ filter-language /path/to/aligned/data /path/to/aligned/data/filtered --target-la
 ### Feature Extraction
 
 ### OCR Post-Correction
+
+#### Correcting unseen data
+
+~~~
+predict-translator /path/to/ocr/data /path/to/gt/data /path/to/trained/model /path/to/model/hyperparameters /path/to/code-to-token/mapping /path/to/output/directory
+~~~
