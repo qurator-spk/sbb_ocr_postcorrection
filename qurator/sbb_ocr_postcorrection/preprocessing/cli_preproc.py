@@ -140,7 +140,7 @@ def apply_sliding_window(in_dir, out_dir):
 
     \b
     Arguments:
-    in-dir -- The absolute path to the aligned JSON data
+    in-dir -- The absolute path to the aligned JSON data or single page (as txt)
     out-dir -- The absolute path to the aligned JSON data (sliding window)
     '''
 
@@ -150,39 +150,54 @@ def apply_sliding_window(in_dir, out_dir):
     in_dir = os.path.abspath(in_dir)
     out_dir = os.path.abspath(out_dir)
 
-    with io.open(in_dir, mode='r') as f_in:
-        aligned_corpus = json.load(f_in)
-
-    aligned_corpus_context_aligned, splitted_ocr_page, splitted_gt_page, aligned_context_ocr_page, aligned_context_gt_page = create_incremental_context_alignment(aligned_corpus)
-
     # Helper functions should be moved elsewhere (in the long run)
     def generator(page):
         for ocr_line, gt_line in zip(page[0], page[1]):
             yield ((ocr_line[0], ocr_line[1]), (gt_line[0], gt_line[1]))
 
-    aligned_corpus_context_aligned_copy = deepcopy(aligned_corpus_context_aligned)
-    aligned_corpus_new = defaultdict(defaultdict)
+    if os.path.splitext(in_dir)[1] == '.json':
+        with io.open(in_dir, mode='r') as f_in:
+            aligned_corpus = json.load(f_in)
 
-    faulty_pages_total = {}
+        aligned_corpus_context_aligned, splitted_ocr_page, splitted_gt_page, aligned_context_ocr_page, aligned_context_gt_page = create_incremental_context_alignment(aligned_corpus)
 
-    for doc_id, doc_content in aligned_corpus_context_aligned.items():
+        aligned_corpus_context_aligned_copy = deepcopy(aligned_corpus_context_aligned)
+        aligned_corpus_new = defaultdict(defaultdict)
 
-        faulty_pages_doc = []
+        faulty_pages_total = {}
 
-        print('Document ID: {}'.format(doc_id))
-        aligned_doc = defaultdict(list)
-        for page_id, page_content in doc_content.items():
-            #print(page_id)
-            page_iterator = generator(page_content)
-            try:
-                ocr, gt, character_error_rates, levenshtein_distances, min_distances, max_distances, similarity_encoding = check_sequence_similarity(page_iterator, similarity_range=(0.00, 0.10))
-                aligned_doc[page_id] = (ocr, gt, character_error_rates, levenshtein_distances, min_distances, max_distances, similarity_encoding)
-            except:
-                faulty_pages_doc.append(page_id)
-        aligned_corpus_new[doc_id] = aligned_doc
+        for doc_id, doc_content in aligned_corpus_context_aligned.items():
 
-        faulty_pages_total[doc_id] = faulty_pages_doc
-        #break
+            faulty_pages_doc = []
+
+            print('Document ID: {}'.format(doc_id))
+            aligned_doc = defaultdict(list)
+            for page_id, page_content in doc_content.items():
+                #print(page_id)
+                page_iterator = generator(page_content)
+
+                try:
+                    ocr, gt, character_error_rates, levenshtein_distances, min_distances, max_distances, similarity_encoding = check_sequence_similarity(page_iterator, similarity_range=(0.00, 0.10))
+                    aligned_doc[page_id] = (ocr, gt, character_error_rates, levenshtein_distances, min_distances, max_distances, similarity_encoding)
+                except:
+                    faulty_pages_doc.append(page_id)
+            aligned_corpus_new[doc_id] = aligned_doc
+
+            faulty_pages_total[doc_id] = faulty_pages_doc
+            #break
+
+    elif os.path.splitext(in_dir)[1] == '.txt':
+        with io.open(in_dir, mode='r') as f_in:
+            page = f_in.readlines()
+        
+        page_dict = defaultdict(defaultdict)
+        page = [[i, line.strip()] for i, line in enumerate(page)]
+        page_dict['none']['P0001'] = [page]
+
+        aligned_corpus_context_aligned, splitted_ocr_page, splitted_gt_page, aligned_context_ocr_page, aligned_context_gt_page = create_incremental_context_alignment(page_dict)
+
+        #aligned_corpus_context_aligned_copy = deepcopy(aligned_corpus_context_aligned)
+        aligned_corpus_new = deepcopy(aligned_corpus_context_aligned)
 
     with io.open(out_dir, mode='w') as f_out:
         json.dump(aligned_corpus_new, f_out)

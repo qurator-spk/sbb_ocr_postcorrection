@@ -29,7 +29,8 @@ setup(
             'split-dataset-sliding-window=qurator.sbb_ocr_postcorrection.preprocessing.cli_preproc:split_dataset_sliding_window',
             #cli_feature.py
             'create-encoding-mapping=qurator.sbb_ocr_postcorrection.feature_extraction.cli_feature:create_encoding_mapping',
-            'encode-features=qurator.sbb_ocr_postcorrection.feature_extraction.cli_feature:encode_features',
+            'encode-features-for-single-page=qurator.sbb_ocr_postcorrection.feature_extraction.cli_feature:encode_features_for_single_page',
+            'encode-features-for-splitted-data=qurator.sbb_ocr_postcorrection.feature_extraction.cli_feature:encode_features_for_splitted_data',
             'encode-features-hack=qurator.sbb_ocr_postcorrection.feature_extraction.cli_feature:encode_features_hack',
             #cli_correct.py
             'evaluate-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:evaluate_detector',
@@ -38,6 +39,7 @@ setup(
             'predict-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_detector',
             'predict-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:predict_translator',
             'run-two-step-pipeline=qurator.sbb_ocr_postcorrection.mt.cli_correct:run_two_step_pipeline',
+            'run-two-step-pipeline-on-single-page=qurator.sbb_ocr_postcorrection.mt.cli_correct:run_two_step_pipeline_on_single_page',
             'train-detector=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_detector',
             'train-argmax-converter=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_argmax_converter',
             'train-translator=qurator.sbb_ocr_postcorrection.mt.cli_correct:train_translator'

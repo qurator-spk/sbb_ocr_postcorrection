@@ -50,6 +50,7 @@ def check_sequence_similarity(aligned_sequence, similarity_range=(0.01, 0.1), co
     #import pdb; pdb.set_trace()
 
     for ocr, gt in zip(left, right):
+
         ocr_id = ocr[0]
         ocr_seq = ocr[1]
         gt_id = gt[0]

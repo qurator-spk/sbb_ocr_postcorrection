@@ -8,7 +8,7 @@ from .encoding import add_padding, create_encoding_mappings, encode_sequence, fi
 from .tokenization import WordpieceTokenizer
 from .wordpiece import WordpieceVocabGenerator
 
-from qurator.sbb_ocr_postcorrection.data_preproc.database import load_alignments_from_sqlite
+from qurator.sbb_ocr_postcorrection.preprocessing.database import load_alignments_from_sqlite
 
 
 @click.command()
@@ -72,6 +72,73 @@ def create_encoding_mapping(training_dir, testing_dir, validation_dir,
 
 ################################################################################
 @click.command()
+@click.argument('in-dir', type=click.Path(exists=True))
+@click.argument('out-dir', type=click.Path(exists=True))
+@click.argument('token-to-code-dir', type=click.Path(exists=True))
+@click.option('--seq-len', default=40, help='The maximal length of a sequence.')
+def encode_features_for_single_page(in_dir, out_dir, token_to_code_dir, seq_len):
+    '''
+    '''
+    in_dir = os.path.abspath(in_dir)
+    out_dir = os.path.abspath(out_dir)
+    token_to_code_dir = os.path.abspath(token_to_code_dir)
+
+    encoded_ocr_dir = os.path.join(out_dir, 'encoded_ocr.npy')
+
+    with io.open(in_dir, mode='r') as f_in:
+        page_ocr = json.load(f_in)
+
+    with io.open(token_to_code_dir, mode='r') as f_in:
+        token_to_code_mapping = json.load(f_in)
+
+    pad_encoding = True # unpadded version does not work yet
+
+    tok = WordpieceTokenizer(token_to_code_mapping, token_delimiter="<WSC>", unknown_char="<UNK>")
+
+    print_examples = True
+
+    if seq_len is None:
+        ocr_encodings = []
+
+        for i, line in enumerate(page_ocr['none']['P0001'][0]):
+            tokenized_ocr = tok.tokenize(alignment[1], print_examples)
+
+            ocr_encoding = encode_sequence(tokenized_ocr, token_to_code_mapping)
+
+            ocr_encodings.append(ocr_encoding)
+
+        #seq_len = find_longest_sequence(ocr_encodings, gt_encodings)
+        #print('Max Length: {}'.format(seq_len))
+    else:
+        print('Max Length: {}'.format(seq_len))
+
+    ocr_encodings = []
+
+    for i, line in enumerate(page_ocr['none']['P0001'][0]):
+    #    import pdb; pdb.set_trace()
+        tokenized_ocr = tok.tokenize(line[1], print_examples)
+
+        ocr_encoding = encode_sequence(tokenized_ocr, token_to_code_mapping)
+
+        ocr_encodings.append(ocr_encoding)
+
+    if pad_encoding:
+        try:
+            ocr_encodings = add_padding(ocr_encodings, seq_len)
+        except TypeError as te:
+            print(te)
+    else:
+        try:
+            ocr_encodings = vectorize_encoded_sequences(ocr_encodings)
+        except:
+            pass
+
+    np.save(encoded_ocr_dir, ocr_encodings)
+
+
+
+################################################################################
+@click.command()
 @click.argument('training-dir', type=click.Path(exists=True))
 @click.argument('testing-dir', type=click.Path(exists=True))
 @click.argument('testing-small-dir', type=click.Path(exists=True))
@@ -80,7 +147,7 @@ def create_encoding_mapping(training_dir, testing_dir, validation_dir,
 @click.argument('out-dir', type=click.Path(exists=True))
 @click.option('--seq-len', default=40, help='The maximal length of a sequence.')
 @click.option('--exp/--no-exp', default=False, help='If exp, print examples.')
-def encode_features(training_dir, testing_dir, testing_small_dir, validation_dir,
+def encode_features_for_splitted_data(training_dir, testing_dir, testing_small_dir, validation_dir,
                     token_to_code_dir, out_dir, seq_len):
     '''
     Arguments:

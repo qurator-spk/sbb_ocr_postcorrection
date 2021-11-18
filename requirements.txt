@@ -5,4 +5,3 @@ numpy
 pandas
 torch
 sklearn
-https://github.com/qurator-spk/dinglehopper/archive/6e47acd.tar.gz
