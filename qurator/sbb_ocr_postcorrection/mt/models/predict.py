@@ -213,7 +213,6 @@ def predict_iters_detector(data_test, trained_detector, batch_size, output_size,
     '''
 
     '''
-
     batch_number = int(len(data_test)/batch_size)
     seq_length = data_test[0].shape[1]
     outputs = torch.zeros([batch_number, seq_length, batch_size, output_size])

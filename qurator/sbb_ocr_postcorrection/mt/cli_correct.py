@@ -927,6 +927,342 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
 ################################################################################
 @click.command()
 @click.argument('ocr-dir', type=click.Path(exists=True))
+@click.argument('detector-model-dir', type=click.Path(exists=True))
+@click.argument('translator-model-dir', type=click.Path(exists=True))
+@click.argument('hyper-params-detector-dir', type=click.Path(exists=True))
+@click.argument('hyper-params-translator-dir', type=click.Path(exists=True))
+@click.argument('code-to-token-detector-dir', type=click.Path(exists=True))
+@click.argument('code-to-token-translator-dir', type=click.Path(exists=True))
+@click.argument('out-dir', type=click.Path(exists=True))
+def run_two_step_pipeline_on_single_page(ocr_dir, 
+        detector_model_dir, 
+        translator_model_dir,
+        hyper_params_detector_dir, 
+        hyper_params_translator_dir,
+        code_to_token_detector_dir,
+        code_to_token_translator_dir,
+        out_dir):
+    '''
+    ''' 
+
+    with io.open(ocr_dir, mode='r') as f_in:
+        ocr_data = json.load(f_in)
+
+    with io.open(hyper_params_detector_dir, mode='r') as f_in:
+        hyper_params_detector = json.load(f_in)
+    with io.open(hyper_params_translator_dir, mode='r') as f_in:
+        hyper_params_translator = json.load(f_in)
+
+    with io.open(code_to_token_detector_dir, mode='r') as f_in:
+        code_to_token_mapping_detector = json.load(f_in)
+        token_to_code_mapping_detector = {token: code for code, token in code_to_token_mapping_detector.items()}
+    with io.open(code_to_token_translator_dir, mode='r') as f_in:
+        code_to_token_mapping_translator = json.load(f_in)
+        token_to_code_mapping_translator = {token: code for code, token in code_to_token_mapping_translator.items()}
+
+    def encode_features_for_single_page(data, token_to_code_mapping, seq_len):
+
+        tok = WordpieceTokenizer(token_to_code_mapping, token_delimiter="<WSC>", unknown_char="<UNK>")
+        print_examples=False
+        pad_encoding=True
+
+        if seq_len is None:
+            ocr_encodings = []
+            for i, line in enumerate(data['none']['P0001'][0]):
+                tokenized_ocr = tok.tokenize(alignment[1], print_examples)
+                ocr_encoding = encode_sequence(tokenized_ocr, token_to_code_mapping)
+                ocr_encodings.append(ocr_encoding)
+            #seq_len = find_longest_sequence(ocr_encodings, gt_encodings)
+            #print('Max Length: {}'.format(seq_len))
+        else:
+            print('Max Length: {}'.format(seq_len))
+
+        ocr_encodings = []
+
+        for i, line in enumerate(data['none']['P0001'][0]):
+        #    import pdb; pdb.set_trace()
+            tokenized_ocr = tok.tokenize(line[1], print_examples)
+            ocr_encoding = encode_sequence(tokenized_ocr, token_to_code_mapping)
+            ocr_encodings.append(ocr_encoding)
+
+        if pad_encoding:
+            try:
+                ocr_encodings = add_padding(ocr_encodings, seq_len)
+            except TypeError as te:
+                print(te)
+        else:
+            try:
+                ocr_encodings = vectorize_encoded_sequences(ocr_encodings)
+            except:
+                pass
+
+        return ocr_encodings
+
+    ocr_encodings = encode_features_for_single_page(ocr_data, token_to_code_mapping_detector, seq_len=40)
+
+    batch_size = 200
+
+    size_dataset = find_max_mod(len(ocr_encodings), batch_size)
+
+    # Fill last batch with empty lines (if last batch < batch_size)
+    if len(ocr_encodings) > size_dataset:
+        size_smallest_batch = len(ocr_encodings) - size_dataset 
+        missing_lines_number = batch_size - size_smallest_batch
+        zero_array = np.zeros([missing_lines_number, 40], dtype=int)
+
+        ocr_encodings_batch_padded = np.concatenate((ocr_encodings, zero_array), axis=0) 
+        size_dataset = ocr_encodings_batch_padded.shape[0]  
+        
+    #print('OCR testing encoding dimensions: {}'.format(ocr_encodings.shape))
+
+    # add 1 for additional 0 padding, i.e. padded 0 are treated as vocab
+    detector_encoding_size = len(token_to_code_mapping_detector) + 1
+    print('Token encodings: {}'.format(detector_encoding_size))
+
+    #print('\n2. INITIALIZE DETECTOR DATASET OBJECT')
+
+    #detector_dataset = OCRCorrectionDataset(ocr_encodings, gt_encodings)
+    detector_dataset = OCRCorrectionDataset(ocr_encodings_batch_padded)
+
+    print('Testing size: {}'.format(len(detector_dataset)))
+    #print('Training size: {}'.format(len(dataset_training)))
+
+    detector_input_size = detector_encoding_size
+    detector_hidden_size = hyper_params_detector['hidden_size']
+    detector_output_size = hyper_params_detector['output_size']
+    detector_batch_size = hyper_params_detector['batch_size']
+    seq_length = hyper_params_detector['seq_length']
+    detector_num_layers = hyper_params_detector['n_layers']
+    detector_dropout = hyper_params_detector['dropout_prob']
+    detector_bidirectional = hyper_params_detector['bidir']
+    detector_activation = hyper_params_detector['activation']
+    detector_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    detector = DetectorLSTM(detector_input_size, detector_hidden_size, detector_output_size, detector_batch_size, detector_num_layers, bidirectional=detector_bidirectional, activation=detector_activation, device=detector_device).to(detector_device)
+
+    detector_checkpoint = torch.load(detector_model_dir, map_location=detector_device)
+
+    detector.load_state_dict(detector_checkpoint['trained_detector']) # trained_detector
+
+    detector.eval()
+
+    print('\n4. PREDICT ERRORS')
+
+    import pdb; pdb.set_trace()
+
+    error_predictions = predict_iters_detector(detector_dataset, detector, detector_batch_size, detector_output_size, device=detector_device)
+
+    #torch.save(error_predictions, error_predictions_dir)
+
+    ##########
+
+    # definition: conversion function
+    def convert_softmax_prob_to_label(batch, threshold=0.8):
+        seq_length = batch.shape[0]
+        batch_size = batch.shape[1]
+        batch_predicted_labels = torch.zeros([seq_length, batch_size])
+        #batch_predicted_labels = torch.zeros([batch_size, seq_length])
+
+        for si in range(seq_length):
+            for bi in range(batch_size):
+                max_index = torch.argmax(batch[si, bi])
+
+                #import pdb; pdb.set_trace()
+                if max_index == 2:
+                    if batch[si, bi][max_index] >= threshold:
+                        batch_predicted_labels[si, bi] = max_index.item()
+                    else:
+                        batch_predicted_labels[si, bi] = 1
+                else:
+                    batch_predicted_labels[si, bi] = max_index.item()
+        #for bi in range(batch_size):
+        #    for si in range(seq_length):
+        #        max_index = torch.argmax(batch[bi, si])
+        #        batch_predicted_labels[bi, si] = max_index
+
+        return batch_predicted_labels
+
+    target_index = 0
+
+    predicted_labels_total = []
+    predicted_labels_total = np.zeros((size_dataset, seq_length))
+
+    batch_id = 0
+
+    ############
+    print('\n5. REFORMATTING TOTAL PREDICTIONS AND SENTENCE-WISE:')
+
+    for predicted_batch in error_predictions:
+        #print('Batch ID: {}'.format(batch_id))
+        batch_id += 1
+
+        #target_tensor = torch.from_numpy(targets_testing[target_index:target_index+batch_size]).to(device)
+        #target_tensor = torch.t(target_tensor)
+
+        batch_predicted_labels = convert_softmax_prob_to_label(predicted_batch, threshold=0.99)
+        batch_predicted_labels = torch.t(batch_predicted_labels).type(torch.int64).numpy()
+
+        predicted_labels_total[target_index:(target_index+detector_batch_size), :] = batch_predicted_labels
+
+        target_index += detector_batch_size
+
+    seq_id_detector_pred_mapping = {} # needed to map corrected lines back to their original position
+    
+    predicted_sequence_labels = np.zeros((size_dataset-missing_lines_number, 1))
+    predicted_labels_total = predicted_labels_total[:len(ocr_encodings), :]
+
+    for seq_i, sequence in enumerate(predicted_labels_total):
+        if 2 in sequence:
+            predicted_sequence_labels[seq_i] = 1
+            seq_id_detector_pred_mapping[str(seq_i)] = 1
+        else:
+            predicted_sequence_labels[seq_i] = 0
+            seq_id_detector_pred_mapping[str(seq_i)] = 0
+
+    ########
+    print('\n CREATE TRANSLATOR SET')
+
+    ocr_encodings_translator = encode_features_for_single_page(ocr_data, token_to_code_mapping_translator, seq_len=40)
+    
+    ocr_encodings_incorrect = []
+    ocr_encodings_correct = []
+
+    incorrect_id = 0
+    correct_id = 0
+    incorrect_line_mapping = {}
+    correct_line_mapping = {}
+    incorrect_lines = []
+    for i in range(ocr_encodings_translator.shape[0]):
+        if seq_id_detector_pred_mapping[str(i)] == 1:
+            incorrect_line_mapping[str(i)] = str(incorrect_id)
+            incorrect_id += 1
+            correct_line_mapping[str(i)] = False 
+            incorrect_lines.append(str(i))
+            
+            ocr_encodings_incorrect.append(ocr_encodings_translator[i])
+        else:
+            correct_line_mapping[str(i)] = str(correct_id)
+            correct_id += 1
+            incorrect_line_mapping[str(i)] = False
+ 
+            ocr_encodings_correct.append(ocr_encodings_translator[i])
+    
+    ocr_encodings_correct = np.array(ocr_encodings_correct)
+    ocr_encodings_incorrect = np.array(ocr_encodings_incorrect)
+
+    size_dataset_translator = find_max_mod(len(ocr_encodings_incorrect), batch_size)
+
+    # Fill last batch with empty lines (if last batch < batch_size)
+    if len(ocr_encodings_incorrect) > size_dataset_translator:
+        size_smallest_batch_translator = len(ocr_encodings_incorrect) - size_dataset_translator 
+        missing_lines_number_translator = batch_size - size_smallest_batch_translator
+        zero_array_translator = np.zeros([missing_lines_number_translator, 40], dtype=int)
+
+        ocr_encodings_incorrect_batch_padded = np.concatenate((ocr_encodings_incorrect, zero_array_translator), axis=0) 
+        size_dataset_translator = ocr_encodings_incorrect_batch_padded.shape[0] 
+    
+    import pdb; pdb.set_trace()
+
+    ocr_lines = ocr_data['none']['P0001'][0]
+    correct_sequences = []
+
+    for i, out in seq_id_detector_pred_mapping.items():
+        if out == 0:
+            correct_sequences.append(ocr_lines[int(i)][1])
+            
+    import pdb; pdb.set_trace()
+
+    
+    #############################
+    print('\n3.TRANSLATOR')
+    # add 1 for additional 0 padding, i.e. padded 0 are treated as vocab
+    translator_encoding_size = len(token_to_code_mapping_translator) + 1
+    print('Token encodings: {}'.format(translator_encoding_size))
+
+    print('\n3.1. INITIALIZE DATASET OBJECT')
+
+    data_incorrect_size = ocr_encodings_incorrect.shape[0]
+
+    #translator_dataset_testing = OCRCorrectionDataset(ocr_encodings_incorrect_hack, gt_encodings_incorrect_hack)
+    translator_dataset_testing = OCRCorrectionDataset(ocr_encodings_incorrect_batch_padded)
+
+    print('Testing size: {}'.format(len(translator_dataset_testing)))
+
+    print('\n3.2. DEFINE HYPERPARAMETERS AND LOAD ENCODER/DECODER NETWORKS')
+
+    translator_input_size = translator_encoding_size
+    translator_hidden_size = hyper_params_translator['hidden_size']
+    translator_output_size = translator_input_size
+    translator_batch_size = hyper_params_translator['batch_size']
+    translator_seq_length = hyper_params_translator['seq_length']
+    translator_num_layers = hyper_params_translator['n_layers']
+    translator_dropout = hyper_params_translator['dropout_prob']
+    translator_with_attention = hyper_params_translator['with_attention']
+    translator_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    encoder = EncoderLSTM(translator_input_size, translator_hidden_size, translator_batch_size, translator_num_layers, device=translator_device)
+
+    if translator_with_attention:
+        decoder = AttnDecoderLSTM(translator_hidden_size, translator_output_size, translator_batch_size, translator_seq_length, num_layers=translator_num_layers, dropout=translator_dropout, device=translator_device)
+    else:
+        decoder = DecoderLSTM(translator_hidden_size, translator_output_size, translator_batch_size, device=translator_device)
+
+    translator_checkpoint = torch.load(translator_model_dir, map_location=translator_device)
+    encoder.load_state_dict(translator_checkpoint['trained_encoder'])
+    decoder.load_state_dict(translator_checkpoint['trained_decoder'])
+
+    encoder.eval()
+    decoder.eval()
+
+    print('\n3.3. PREDICT SEQUENCES')
+
+    translator_decodings = predict_iters(translator_dataset_testing, encoder, decoder, translator_batch_size, translator_seq_length, translator_with_attention, device=translator_device)
+
+    print('\n3.4. DECODE SEQUENCES')
+
+    translator_decoded_sequences = []
+    translator_pred_sequences = []
+    for decoded_batch in translator_decodings:
+        for decoding in decoded_batch:
+            decoded_sequence, joined_sequence = decode_sequence(list(decoding), code_to_token_mapping_translator)
+            translator_decoded_sequences.append(decoded_sequence)
+            translator_pred_sequences.append(joined_sequence)
+
+    translator_pred_sequences = translator_pred_sequences[:len(ocr_encodings_incorrect)]
+
+    #with io.open(translator_decoded_sequences_dir, mode='wb') as f_out:
+    #    pickle.dump(translator_decoded_sequences, f_out)
+    #with io.open(translator_pred_sequences_dir, mode='wb') as f_out:
+    #    pickle.dump(translator_pred_sequences, f_out)
+
+    # combine correct and corrected sequences; loop over whole data size
+    corrected_data = []
+    
+    import pdb; pdb.set_trace()
+
+    for i in range(len(ocr_lines)):
+        if correct_line_mapping[str(i)]:
+            corrected_data.append(correct_sequences[int(correct_line_mapping[str(i)])])
+        if incorrect_line_mapping[str(i)]:
+            corrected_data.append(translator_pred_sequences[int(incorrect_line_mapping[str(i)])])
+
+    import pdb; pdb.set_trace()
+
+    page_out_dir = os.path.join(out_dir, "corrected_page.txt")
+    with io.open(page_out_dir, mode='w') as f_out:
+        for line in corrected_data:
+            f_out.write("%s\n" % line)
+    
+    import pdb; pdb.set_trace()
+    incorrect_lines_id_out_dir = os.path.join(out_dir, "incorrect_lines_id.txt")
+    with io.open(incorrect_lines_id_out_dir, mode='w') as f_out:
+        for id in incorrect_lines:
+            f_out.write("%s\n" % id)
+    
+
+################################################################################
+@click.command()
+@click.argument('ocr-dir', type=click.Path(exists=True))
 #@click.argument('gt-dir', type=click.Path(exists=True))
 @click.argument('aligned-dir', type=click.Path(exists=True))
 @click.argument('detector-model-dir', type=click.Path(exists=True))

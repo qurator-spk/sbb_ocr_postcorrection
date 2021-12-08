@@ -70,14 +70,18 @@ def create_incremental_context_alignment(aligned_corpus, context_size=4):
     for doc_name, aligned_doc in aligned_corpus.items():
         for page_id, aligned_page in aligned_doc.items():
 
-            #import pdb; pdb.set_trace()
+            # if only ocr page is processed all gt variables remain empty
             #print(page_id)
             splitted_ocr_page, splitted_gt_page = split_into_adjacent_parts(page_id, aligned_page)
             aligned_context_ocr_page, aligned_context_gt_page = align_context(splitted_ocr_page=splitted_ocr_page, splitted_gt_page=splitted_gt_page, context_size=context_size)
 
-            aligned_corpus_deepcopy[doc_name][page_id][0] = aligned_context_ocr_page
-            aligned_corpus_deepcopy[doc_name][page_id][1] = aligned_context_gt_page
+            if len(aligned_page) > 1:
+                aligned_corpus_deepcopy[doc_name][page_id][0] = aligned_context_ocr_page
+                aligned_corpus_deepcopy[doc_name][page_id][1] = aligned_context_gt_page
 
+            else:
+                aligned_corpus_deepcopy[doc_name][page_id][0] = aligned_context_ocr_page
+                aligned_corpus_deepcopy[doc_name][page_id].append(aligned_context_gt_page)
             #if len(splitted_ocr_page) > 0:
             #    break
 
@@ -92,23 +96,39 @@ def align_context(splitted_ocr_page, splitted_gt_page, context_size=4):
 
     line_id = 1
 
-    for adjacent_ocr, adjacent_gt in zip(splitted_ocr_page, splitted_gt_page):
-        ocr_tokenized = re.split('<wb>|<lb>', adjacent_ocr)
-        gt_tokenized = re.split('<wb>|<lb>', adjacent_gt)
+    if len(splitted_gt_page) > 0:
+        for adjacent_ocr, adjacent_gt in zip(splitted_ocr_page, splitted_gt_page):
+            ocr_tokenized = re.split('<wb>|<lb>', adjacent_ocr)
+            gt_tokenized = re.split('<wb>|<lb>', adjacent_gt)
 
-        i = 0
-        min_length = max(len(ocr_tokenized), len(gt_tokenized))
+            i = 0
+            min_length = max(len(ocr_tokenized), len(gt_tokenized))
 
-        if context_size > min_length:
-            aligned_context_ocr_page.append([str(line_id), ' '.join(ocr_tokenized)])
-            aligned_context_gt_page.append([str(line_id), ' '.join(gt_tokenized)])
-            line_id += 1
-        else:
-            while (i + context_size) <= min_length:
-                aligned_context_ocr_page.append([str(line_id), ' '.join(ocr_tokenized[i:i+context_size])])
-                aligned_context_gt_page.append([str(line_id), ' '.join(gt_tokenized[i:i+context_size])])
+            if context_size > min_length:
+                aligned_context_ocr_page.append([str(line_id), ' '.join(ocr_tokenized)])
+                aligned_context_gt_page.append([str(line_id), ' '.join(gt_tokenized)])
                 line_id += 1
-                i += 1
+            else:
+                while (i + context_size) <= min_length:
+                    aligned_context_ocr_page.append([str(line_id), ' '.join(ocr_tokenized[i:i+context_size])])
+                    aligned_context_gt_page.append([str(line_id), ' '.join(gt_tokenized[i:i+context_size])])
+                    line_id += 1
+                    i += 1
+    else:
+        for adjacent_ocr in splitted_ocr_page:
+            ocr_tokenized = re.split('<wb>|<lb>', adjacent_ocr)
+
+            i = 0
+            min_length = len(ocr_tokenized)
+
+            if context_size > min_length:
+                aligned_context_ocr_page.append([str(line_id), ' '.join(ocr_tokenized)])
+                line_id += 1
+            else:
+                while (i + context_size) <= min_length:
+                    aligned_context_ocr_page.append([str(line_id), ' '.join(ocr_tokenized[i:i+context_size])])
+                    line_id += 1
+                    i += 1
 
     return aligned_context_ocr_page, aligned_context_gt_page
 
@@ -122,8 +142,6 @@ def split_into_adjacent_parts(page_id, aligned_page):
     adjacent_ocr_lines = []
     adjacent_gt_lines = []
 
-#    import pdb; pdb.set_trace()
-
     def insert_break_tags(line):
         '''
         '''
@@ -135,31 +153,51 @@ def split_into_adjacent_parts(page_id, aligned_page):
     #    import pdb; pdb.set_trace()
 
     list_index = 0
-    for ocr_line, gt_line in zip(aligned_page[0], aligned_page[1]):
-        if len(adjacent_ocr_lines) != 0:
-            if int(ocr_line[0]) -1 == last_id:
+    if len(aligned_page) > 1:
+        for ocr_line, gt_line in zip(aligned_page[0], aligned_page[1]):
+            if len(adjacent_ocr_lines) != 0:
+                if int(ocr_line[0]) -1 == last_id:
+                    adjacent_ocr_lines.append(ocr_line[1])
+                    adjacent_gt_lines.append(gt_line[1])
+                    last_id = int(ocr_line[0])
+                    list_index += 1
+                    if (list_index + 1) == len(aligned_page[0]):
+                        splitted_ocr_page.append(insert_break_tags(' '.join(adjacent_ocr_lines)))
+                        splitted_gt_page.append(insert_break_tags(' '.join(adjacent_gt_lines)))
+                        break
+                else:
+                    splitted_ocr_page.append(insert_break_tags(' '.join(adjacent_ocr_lines)))
+                    splitted_gt_page.append(insert_break_tags(' '.join(adjacent_gt_lines)))
+                    adjacent_ocr_lines = []
+                    adjacent_gt_lines = []
+                    adjacent_ocr_lines.append(ocr_line[1])
+                    adjacent_gt_lines.append(gt_line[1])
+                    last_id = int(ocr_line[0])
+            else:
                 adjacent_ocr_lines.append(ocr_line[1])
                 adjacent_gt_lines.append(gt_line[1])
                 last_id = int(ocr_line[0])
                 list_index += 1
-                if (list_index + 1) == len(aligned_page[0]):
+    else:
+        for ocr_line in aligned_page[0]:
+            if len(adjacent_ocr_lines) != 0:
+                if int(ocr_line[0]) -1 == last_id:
+                    adjacent_ocr_lines.append(ocr_line[1])
+                    last_id = int(ocr_line[0])
+                    list_index += 1
+                    if (list_index + 1) == len(aligned_page[0]):
+                        splitted_ocr_page.append(insert_break_tags(' '.join(adjacent_ocr_lines)))
+                        break
+                else:
                     splitted_ocr_page.append(insert_break_tags(' '.join(adjacent_ocr_lines)))
-                    splitted_gt_page.append(insert_break_tags(' '.join(adjacent_gt_lines)))
-                    break
+                    adjacent_ocr_lines = []
+                    adjacent_ocr_lines.append(ocr_line[1])
+                    last_id = int(ocr_line[0])
             else:
-                splitted_ocr_page.append(insert_break_tags(' '.join(adjacent_ocr_lines)))
-                splitted_gt_page.append(insert_break_tags(' '.join(adjacent_gt_lines)))
-                adjacent_ocr_lines = []
-                adjacent_gt_lines = []
                 adjacent_ocr_lines.append(ocr_line[1])
-                adjacent_gt_lines.append(gt_line[1])
                 last_id = int(ocr_line[0])
-        else:
-            adjacent_ocr_lines.append(ocr_line[1])
-            adjacent_gt_lines.append(gt_line[1])
-            last_id = int(ocr_line[0])
-            list_index += 1
-
+                list_index += 1
+            
 
 
 #    def split_line_ids_into_adjacent_parts(line_ids):
