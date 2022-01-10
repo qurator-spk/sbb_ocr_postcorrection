@@ -1,2 +1,5 @@
 __pycache__/
 qurator/sbb_ocr_postcorrection/misc/
+
+# Distribution / packaging
+*.egg-info/
