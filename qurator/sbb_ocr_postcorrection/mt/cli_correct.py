@@ -1013,7 +1013,9 @@ def run_two_step_pipeline_on_single_page(
         zero_array = np.zeros([missing_lines_number, 40], dtype=int)
 
         ocr_encodings_batch_padded = np.concatenate((ocr_encodings, zero_array), axis=0) 
-        size_dataset = ocr_encodings_batch_padded.shape[0]  
+        size_dataset = ocr_encodings_batch_padded.shape[0]
+    else:
+        ocr_encodings_batch_padded = ocr_encodings
         
     #print('OCR testing encoding dimensions: {}'.format(ocr_encodings.shape))
 
