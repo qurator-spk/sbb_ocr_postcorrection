@@ -197,6 +197,8 @@ def apply_sliding_window(in_file, out_file):
 
         #aligned_corpus_context_aligned_copy = deepcopy(aligned_corpus_context_aligned)
         aligned_corpus_new = deepcopy(aligned_corpus_context_aligned)
+    else:
+        raise ValueError(f"Can't handle {in_file}!")
 
     with io.open(out_file, mode='w') as f_out:
         json.dump(aligned_corpus_new, f_out)
