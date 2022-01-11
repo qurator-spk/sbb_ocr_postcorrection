@@ -132,31 +132,30 @@ def align_sequences(ocr_dir, gt_dir, out_dir):
 
 ################################################################################
 @click.command()
-@click.argument('in-dir', type=click.Path(exists=True))
-@click.argument('out-dir', type=click.Path(exists=False))
-def apply_sliding_window(in_dir, out_dir):
-    '''
+@click.argument('in-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('out-file', type=click.Path(exists=False, dir_okay=False))
+def apply_sliding_window(in_file, out_file):
+    """
     Apply sliding window reformatting to aligned data.
 
-    \b
-    Arguments:
-    in-dir -- The absolute path to the aligned JSON data or single page (as txt)
-    out-dir -- The absolute path to the aligned JSON data (sliding window)
-    '''
+    IN_FILE is the path to the aligned JSON data or single page (as a text file).
+
+    OUT_FILE is the path to the aligned JSON data (sliding window).
+    """
 
     # START: script
 
     # make paths absolute
-    in_dir = os.path.abspath(in_dir)
-    out_dir = os.path.abspath(out_dir)
+    in_file = os.path.abspath(in_file)
+    out_file = os.path.abspath(out_file)
 
     # Helper functions should be moved elsewhere (in the long run)
     def generator(page):
         for ocr_line, gt_line in zip(page[0], page[1]):
             yield ((ocr_line[0], ocr_line[1]), (gt_line[0], gt_line[1]))
 
-    if os.path.splitext(in_dir)[1] == '.json':
-        with io.open(in_dir, mode='r') as f_in:
+    if os.path.splitext(in_file)[1] == '.json':
+        with io.open(in_file, mode='r') as f_in:
             aligned_corpus = json.load(f_in)
 
         aligned_corpus_context_aligned, splitted_ocr_page, splitted_gt_page, aligned_context_ocr_page, aligned_context_gt_page = create_incremental_context_alignment(aligned_corpus)
@@ -186,8 +185,8 @@ def apply_sliding_window(in_dir, out_dir):
             faulty_pages_total[doc_id] = faulty_pages_doc
             #break
 
-    elif os.path.splitext(in_dir)[1] == '.txt':
-        with io.open(in_dir, mode='r') as f_in:
+    elif os.path.splitext(in_file)[1] == '.txt':
+        with io.open(in_file, mode='r') as f_in:
             page = f_in.readlines()
         
         page_dict = defaultdict(defaultdict)
@@ -199,7 +198,7 @@ def apply_sliding_window(in_dir, out_dir):
         #aligned_corpus_context_aligned_copy = deepcopy(aligned_corpus_context_aligned)
         aligned_corpus_new = deepcopy(aligned_corpus_context_aligned)
 
-    with io.open(out_dir, mode='w') as f_out:
+    with io.open(out_file, mode='w') as f_out:
         json.dump(aligned_corpus_new, f_out)
 
 ################################################################################
