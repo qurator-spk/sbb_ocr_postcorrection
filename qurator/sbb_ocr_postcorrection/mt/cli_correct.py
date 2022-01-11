@@ -924,39 +924,41 @@ def predict_translator(ocr_dir, gt_dir, model_dir, hyper_params_dir,
     with io.open(ocr_sequences_dir, mode='wb') as f_out:
         pickle.dump(ocr_sequences, f_out)
 
+
 ################################################################################
 @click.command()
-@click.argument('ocr-dir', type=click.Path(exists=True))
-@click.argument('detector-model-dir', type=click.Path(exists=True))
-@click.argument('translator-model-dir', type=click.Path(exists=True))
-@click.argument('hyper-params-detector-dir', type=click.Path(exists=True))
-@click.argument('hyper-params-translator-dir', type=click.Path(exists=True))
-@click.argument('code-to-token-detector-dir', type=click.Path(exists=True))
-@click.argument('code-to-token-translator-dir', type=click.Path(exists=True))
-@click.argument('out-dir', type=click.Path(exists=True))
-def run_two_step_pipeline_on_single_page(ocr_dir, 
-        detector_model_dir, 
-        translator_model_dir,
-        hyper_params_detector_dir, 
-        hyper_params_translator_dir,
-        code_to_token_detector_dir,
-        code_to_token_translator_dir,
+@click.argument('ocr-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('detector-model-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('translator-model-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('hyper-params-detector-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('hyper-params-translator-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('code-to-token-detector-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('code-to-token-translator-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('out-dir', type=click.Path(exists=True, file_okay=False))
+def run_two_step_pipeline_on_single_page(
+        ocr_file,
+        detector_model_file,
+        translator_model_file,
+        hyper_params_detector_file,
+        hyper_params_translator_file,
+        code_to_token_detector_file,
+        code_to_token_translator_file,
         out_dir):
     '''
     ''' 
 
-    with io.open(ocr_dir, mode='r') as f_in:
+    with io.open(ocr_file, mode='r') as f_in:
         ocr_data = json.load(f_in)
 
-    with io.open(hyper_params_detector_dir, mode='r') as f_in:
+    with io.open(hyper_params_detector_file, mode='r') as f_in:
         hyper_params_detector = json.load(f_in)
-    with io.open(hyper_params_translator_dir, mode='r') as f_in:
+    with io.open(hyper_params_translator_file, mode='r') as f_in:
         hyper_params_translator = json.load(f_in)
 
-    with io.open(code_to_token_detector_dir, mode='r') as f_in:
+    with io.open(code_to_token_detector_file, mode='r') as f_in:
         code_to_token_mapping_detector = json.load(f_in)
         token_to_code_mapping_detector = {token: code for code, token in code_to_token_mapping_detector.items()}
-    with io.open(code_to_token_translator_dir, mode='r') as f_in:
+    with io.open(code_to_token_translator_file, mode='r') as f_in:
         code_to_token_mapping_translator = json.load(f_in)
         token_to_code_mapping_translator = {token: code for code, token in code_to_token_mapping_translator.items()}
 
@@ -1040,7 +1042,7 @@ def run_two_step_pipeline_on_single_page(ocr_dir,
 
     detector = DetectorLSTM(detector_input_size, detector_hidden_size, detector_output_size, detector_batch_size, detector_num_layers, bidirectional=detector_bidirectional, activation=detector_activation, device=detector_device).to(detector_device)
 
-    detector_checkpoint = torch.load(detector_model_dir, map_location=detector_device)
+    detector_checkpoint = torch.load(detector_model_file, map_location=detector_device)
 
     detector.load_state_dict(detector_checkpoint['trained_detector']) # trained_detector
 
@@ -1207,7 +1209,7 @@ def run_two_step_pipeline_on_single_page(ocr_dir,
     else:
         decoder = DecoderLSTM(translator_hidden_size, translator_output_size, translator_batch_size, device=translator_device)
 
-    translator_checkpoint = torch.load(translator_model_dir, map_location=translator_device)
+    translator_checkpoint = torch.load(translator_model_file, map_location=translator_device)
     encoder.load_state_dict(translator_checkpoint['trained_encoder'])
     decoder.load_state_dict(translator_checkpoint['trained_decoder'])
 
