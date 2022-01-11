@@ -3,3 +3,6 @@ qurator/sbb_ocr_postcorrection/misc/
 
 # Distribution / packaging
 *.egg-info/
+
+# User-specific stuff
+.idea
