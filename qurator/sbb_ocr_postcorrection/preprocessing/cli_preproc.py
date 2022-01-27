@@ -27,6 +27,89 @@ from qurator.dinglehopper.align import align, seq_align
 
 @click.command()
 @click.argument('ocr-dir', type=click.Path(exists=True))
+@click.argument('out-dir', type=click.Path(exists=False))
+@click.option('--check/--no-check', default=True)
+def create_ocr_json_of_single_page(ocr_dir, out_dir, check):
+    '''
+    '''
+    
+    def get_split_number(line_len, max_len):
+        counter = 0
+        while (line_len>=max_len):
+            line_len=line_len-max_len
+            counter += 1
+        # TODO: Find a smarter way to define split number 
+        counter+=1
+        return counter
+    
+    with io.open(ocr_dir, mode='r') as f_in:
+        page = f_in.readlines()
+    
+    page_dict = defaultdict(defaultdict)
+    
+    if check:
+        max_len = 40
+        
+        page_checked = []
+        line_ids_checked = []
+        for line in page:
+            line = line.strip()
+            current_i = len(page_checked)
+            if len(line) <= max_len:
+                line_ids_checked.append(current_i)
+                page_checked.append(line)
+                
+            else:
+                line_len = len(line)
+                
+                split_number = get_split_number(line_len, max_len)
+                                
+                line_splitted = line.split(' ')
+                
+                # TODO: Find a another way to split token list
+                lines_splitted = np.array_split(np.array(line_splitted), split_number+1)
+                
+                # Add splitted lines to page list and respective line ids for later reconstruction 
+                # of original line boundaries
+                line_ids = []
+                
+                for i, l in enumerate(lines_splitted):
+                    if i != 0:
+                        current_i += 1
+                    line_ids.append(current_i)
+                    joined_line = ' '.join(list(l))
+                    
+                    assert len(joined_line) <= max_len, print(len(joined_line))
+                    
+                    page_checked.append(joined_line)
+                line_ids_checked.append(line_ids)
+                            
+        print('Line Number (Original): {}'.format(len(page)))
+        print('Line Number (Reformatted): {}'.format(len(page_checked)))
+        page_checked = [[i, line] for i, line in enumerate(page_checked)]
+        page_dict['none']['P0001'] = [page_checked]
+        
+        with io.open(out_dir, mode='w') as f_out:
+            json.dump(page_dict, f_out)
+        
+        dir_ = os.path.dirname(out_dir)
+        id_path = os.path.join(dir_, 'line_ids.json')
+        with io.open(id_path, mode='w') as f_out:
+            json.dump(line_ids_checked, f_out)
+            
+        
+    else:
+        page = [[i, line.strip()] for i, line in enumerate(page)]
+        print('Line Number: {}'.format(len(page)))
+        page_dict['none']['P0001'] = [page]
+
+        with io.open(out_dir, mode='w') as f_out:
+            json.dump(page_dict, f_out)
+        
+        
+
+@click.command()
+@click.argument('ocr-dir', type=click.Path(exists=True))
 @click.argument('gt-dir', type=click.Path(exists=True))
 @click.argument('out-dir', type=click.Path(exists=False))
 def align_sequences(ocr_dir, gt_dir, out_dir):

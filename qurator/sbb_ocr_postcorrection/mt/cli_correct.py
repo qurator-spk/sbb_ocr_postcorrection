@@ -27,6 +27,37 @@ from qurator.sbb_ocr_postcorrection.preprocessing.database import \
 import qurator.dinglehopper.character_error_rate as character_error_rate
 from qurator.dinglehopper.align import seq_align
 
+@click.command()
+@click.argument('corrected-dir', type=click.Path(exists=True))
+@click.argument('id-dir', type=click.Path(exists=True))
+@click.argument('out-dir', type=click.Path(exists=False))
+def reconstruct_single_page_line_boundaries(corrected_dir, id_dir, out_dir):
+    '''
+    '''
+    with io.open(corrected_dir, mode='r') as f_in:
+        page = f_in.readlines()
+
+    with io.open(id_dir, mode='r') as f_in:
+        line_ids = json.load(f_in)
+    
+    page_reconstructed = []
+    
+    for id_ in line_ids:
+        if isinstance(id_, int):
+            pass
+            page_reconstructed.append(page[id_])
+        else:
+            reconstructed_line = ''
+            for i in id_:
+                reconstructed_line += page[i].strip() + ' '
+            reconstructed_line = reconstructed_line.strip() + '\n'    
+            
+            page_reconstructed.append(reconstructed_line)
+    
+    with io.open(out_dir, mode='w') as f_out:
+        for line in page_reconstructed:
+            f_out.write(line)
+
 
 @click.command()
 @click.argument('ocr-dir', type=click.Path(exists=True))
@@ -1052,7 +1083,7 @@ def run_two_step_pipeline_on_single_page(
 
     print('\n4. PREDICT ERRORS')
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     error_predictions = predict_iters_detector(detector_dataset, detector, detector_batch_size, detector_output_size, device=detector_device)
 
@@ -1165,7 +1196,7 @@ def run_two_step_pipeline_on_single_page(
         ocr_encodings_incorrect_batch_padded = np.concatenate((ocr_encodings_incorrect, zero_array_translator), axis=0) 
         size_dataset_translator = ocr_encodings_incorrect_batch_padded.shape[0] 
     
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     ocr_lines = ocr_data['none']['P0001'][0]
     correct_sequences = []
@@ -1174,7 +1205,7 @@ def run_two_step_pipeline_on_single_page(
         if out == 0:
             correct_sequences.append(ocr_lines[int(i)][1])
             
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     
     #############################
@@ -1242,7 +1273,7 @@ def run_two_step_pipeline_on_single_page(
     # combine correct and corrected sequences; loop over whole data size
     corrected_data = []
     
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     for i in range(len(ocr_lines)):
         if correct_line_mapping[str(i)]:
@@ -1250,14 +1281,14 @@ def run_two_step_pipeline_on_single_page(
         if incorrect_line_mapping[str(i)]:
             corrected_data.append(translator_pred_sequences[int(incorrect_line_mapping[str(i)])])
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     page_out_dir = os.path.join(out_dir, "corrected_page.txt")
     with io.open(page_out_dir, mode='w') as f_out:
         for line in corrected_data:
             f_out.write("%s\n" % line)
     
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
     incorrect_lines_id_out_dir = os.path.join(out_dir, "incorrect_lines_id.txt")
     with io.open(incorrect_lines_id_out_dir, mode='w') as f_out:
         for id in incorrect_lines:
@@ -1613,7 +1644,7 @@ def run_two_step_pipeline(ocr_dir, aligned_dir, detector_model_dir,
 
     tok = WordpieceTokenizer(translator_token_to_code_mapping, token_delimiter="<WSC>", unknown_char="<UNK>")
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
     ocr_encodings_incorrect_hack = []
 
@@ -1630,7 +1661,7 @@ def run_two_step_pipeline(ocr_dir, aligned_dir, detector_model_dir,
     
     ocr_encodings_incorrect_hack = add_padding(ocr_encodings_incorrect_hack, seq_length)
 
-    import pdb; pdb.set_trace()
+    #import pdb; pdb.set_trace()
 
 ################################################################################
 

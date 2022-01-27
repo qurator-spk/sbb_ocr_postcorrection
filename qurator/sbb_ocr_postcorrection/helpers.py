@@ -73,6 +73,7 @@ def create_incremental_context_alignment(aligned_corpus, context_size=4):
             # if only ocr page is processed all gt variables remain empty
             #print(page_id)
             splitted_ocr_page, splitted_gt_page = split_into_adjacent_parts(page_id, aligned_page)
+                        
             aligned_context_ocr_page, aligned_context_gt_page = align_context(splitted_ocr_page=splitted_ocr_page, splitted_gt_page=splitted_gt_page, context_size=context_size)
 
             if len(aligned_page) > 1:
