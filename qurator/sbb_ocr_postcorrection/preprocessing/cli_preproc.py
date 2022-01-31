@@ -85,8 +85,8 @@ def create_ocr_json_of_single_page(ocr_file, out_file, check):
                     page_checked.append(joined_line)
                 line_ids_checked.append(line_ids)
                             
-        print('Line Number (Original): {}'.format(len(page)))
-        print('Line Number (Reformatted): {}'.format(len(page_checked)))
+        print('Line count (original): {}'.format(len(page)))
+        print('Line count (reformatted): {}'.format(len(page_checked)))
         page_checked = [[i, line] for i, line in enumerate(page_checked)]
         page_dict['none']['P0001'] = [page_checked]
         
