@@ -94,7 +94,7 @@ def create_ocr_json_of_single_page(ocr_file, out_file, check):
             json.dump(page_dict, f_out)
         
         dir_ = os.path.dirname(out_file)
-        id_path = os.path.join(dir_, 'line_ids.json')
+        id_path = os.path.join(dir_, 'line_ids.json')  # XXX This looks like a bad idea, maybe base on out_file? (Mike)
         with io.open(id_path, mode='w') as f_out:
             json.dump(line_ids_checked, f_out)
             
