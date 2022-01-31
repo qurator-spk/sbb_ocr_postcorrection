@@ -26,10 +26,10 @@ from qurator.dinglehopper.align import align, seq_align
 
 
 @click.command()
-@click.argument('ocr-dir', type=click.Path(exists=True))
-@click.argument('out-dir', type=click.Path(exists=False))
+@click.argument('ocr-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('out-file', type=click.Path(exists=False, dir_okay=False))
 @click.option('--check/--no-check', default=True)
-def create_ocr_json_of_single_page(ocr_dir, out_dir, check):
+def create_ocr_json_of_single_page(ocr_file, out_file, check):
     '''
     '''
     
@@ -42,7 +42,7 @@ def create_ocr_json_of_single_page(ocr_dir, out_dir, check):
         counter+=1
         return counter
     
-    with io.open(ocr_dir, mode='r') as f_in:
+    with io.open(ocr_file, mode='r') as f_in:
         page = f_in.readlines()
     
     page_dict = defaultdict(defaultdict)
@@ -89,10 +89,10 @@ def create_ocr_json_of_single_page(ocr_dir, out_dir, check):
         page_checked = [[i, line] for i, line in enumerate(page_checked)]
         page_dict['none']['P0001'] = [page_checked]
         
-        with io.open(out_dir, mode='w') as f_out:
+        with io.open(out_file, mode='w') as f_out:
             json.dump(page_dict, f_out)
         
-        dir_ = os.path.dirname(out_dir)
+        dir_ = os.path.dirname(out_file)
         id_path = os.path.join(dir_, 'line_ids.json')
         with io.open(id_path, mode='w') as f_out:
             json.dump(line_ids_checked, f_out)
@@ -103,7 +103,7 @@ def create_ocr_json_of_single_page(ocr_dir, out_dir, check):
         print('Line Number: {}'.format(len(page)))
         page_dict['none']['P0001'] = [page]
 
-        with io.open(out_dir, mode='w') as f_out:
+        with io.open(out_file, mode='w') as f_out:
             json.dump(page_dict, f_out)
         
         
