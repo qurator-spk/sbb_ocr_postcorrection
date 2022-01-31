@@ -31,6 +31,7 @@ from qurator.dinglehopper.align import align, seq_align
 @click.option('--check/--no-check', default=True)
 def create_ocr_json_of_single_page(ocr_file, out_file, check):
     '''
+    Create a OCR JSON file in OUT_FILE for a single page of text in OCR_FILE (in text format).
     '''
     
     def get_split_number(line_len, max_len):
