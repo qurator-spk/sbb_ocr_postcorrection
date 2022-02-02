@@ -9,6 +9,7 @@ import os
 import pickle
 import random
 import xml.sax
+import re
 
 from .sequence_similarity import check_sequence_similarity, print_alignment_stats
 from .database import load_alignments_from_sqlite, save_alignments_to_sqlite
@@ -25,6 +26,65 @@ from qurator.sbb_ocr_postcorrection.helpers import add_seq_id_to_aligned_seq, \
 from qurator.dinglehopper.align import align, seq_align
 
 
+def split_iter(string, sep=r"\s+"):
+    """
+    Split a string, the generator version and using a split regex.
+    """
+    regex = f'(?:^|{sep})((?:(?!{sep}).)*)'
+    for m in re.finditer(regex, string):
+        yield m.group(1)
+
+
+def split_into_groups(string, sep=" ", max_len=None):
+    """
+    Split a string into groups of lists of tokens such that each group has a
+    maximum length of max_len if re-joined.
+
+    sep is assumed to be a simple string here, not a regex.
+    """
+
+    current_group = []
+    for t in split_iter(string, sep):
+        if len(t) > max_len:
+            raise ValueError(f"Token '{t}' is longer than max_len == {max_len}.")
+            # Technically, we could make this error optional (either ignore
+            # or spit out overlength tokens in single-member groups).
+        if len(sep.join(current_group + [t])) > max_len:
+            yield current_group
+            current_group = [t]
+        else:
+            current_group += [t]
+    yield current_group
+
+
+def split_with_max_len(string, sep=" ", max_len=None):
+    """
+    Split a string to substrings of a maximal length, but only on separator
+    boundaries.
+
+    sep is assumed to be a simple string here, not a regex.
+    """
+    for g in split_into_groups(string, sep, max_len):
+        yield(sep.join(g))
+
+
+# Some tests...
+assert list(split_iter("This is a test.", " ")) == ["This", "is", "a", "test."]
+assert list(split_into_groups("This is test with a longer text as we need to test splitting a longer text. I hope it works!", max_len=40)) == \
+        [
+            ['This', 'is', 'test', 'with', 'a', 'longer', 'text', 'as', 'we'],
+            ['need', 'to', 'test', 'splitting', 'a', 'longer', 'text.', 'I'],
+            ['hope', 'it', 'works!']
+        ]
+assert list(split_with_max_len("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", sep=" ", max_len=32)) == \
+        [
+            "Lorem ipsum dolor sit amet,",
+            "consectetur adipiscing elit, sed",
+            "do eiusmod tempor incididunt ut",
+            "labore et dolore magna aliqua."
+        ]
+
+
 @click.command()
 @click.argument('ocr-file', type=click.Path(exists=True, dir_okay=False))
 @click.argument('out-file', type=click.Path(exists=False, dir_okay=False))
@@ -33,24 +93,17 @@ def create_ocr_json_of_single_page(ocr_file, out_file, check):
     '''
     Create a OCR JSON file in OUT_FILE for a single page of text in OCR_FILE (in text format).
     '''
-    
-    def get_split_number(line_len, max_len):
-        counter = 0
-        while (line_len>=max_len):
-            line_len=line_len-max_len
-            counter += 1
-        # TODO: Find a smarter way to define split number 
-        counter+=1
-        return counter
-    
+
+
     with io.open(ocr_file, mode='r') as f_in:
         page = f_in.readlines()
-    
+
     page_dict = defaultdict(defaultdict)
-    
+
     if check:
+        # XXX It does seem like we always need lines with len <= 40, so checking is not optional, actually?
         max_len = 40
-        
+
         page_checked = []
         line_ids_checked = []
         for line in page:
@@ -59,46 +112,39 @@ def create_ocr_json_of_single_page(ocr_file, out_file, check):
             if len(line) <= max_len:
                 line_ids_checked.append(current_i)
                 page_checked.append(line)
-                
             else:
-                line_len = len(line)
-                
-                split_number = get_split_number(line_len, max_len)
-                                
-                line_splitted = line.split(' ')
-                
-                # TODO: Find a another way to split token list
-                lines_splitted = np.array_split(np.array(line_splitted), split_number+1)
-                
-                # Add splitted lines to page list and respective line ids for later reconstruction 
+                lines_splitted = list(split_with_max_len(line, sep=' ', max_len=max_len))
+                print(lines_splitted)
+
+                # Add splitted lines to page list and respective line ids for later reconstruction
                 # of original line boundaries
                 line_ids = []
-                
+
                 for i, l in enumerate(lines_splitted):
                     if i != 0:
                         current_i += 1
                     line_ids.append(current_i)
-                    joined_line = ' '.join(list(l))
-                    
-                    assert len(joined_line) <= max_len, print(len(joined_line))
-                    
-                    page_checked.append(joined_line)
+
+                    assert len(l) <= max_len, f"Length of line is too long: '{l}', length {len(l)} > {max_len}"
+
+                    page_checked.append(l)
                 line_ids_checked.append(line_ids)
-                            
+
         print('Line count (original): {}'.format(len(page)))
         print('Line count (reformatted): {}'.format(len(page_checked)))
         page_checked = [[i, line] for i, line in enumerate(page_checked)]
         page_dict['none']['P0001'] = [page_checked]
-        
+
         with io.open(out_file, mode='w') as f_out:
-            json.dump(page_dict, f_out)
-        
+            json.dump(page_dict, f_out, indent=4)
+
         dir_ = os.path.dirname(out_file)
-        id_path = os.path.join(dir_, 'line_ids.json')  # XXX This looks like a bad idea, maybe base on out_file? (Mike)
+        # XXX This hardcoded filename looks like a bad idea, maybe base on out_file? (Mike)
+        id_path = os.path.join(dir_, 'line_ids.json')
         with io.open(id_path, mode='w') as f_out:
-            json.dump(line_ids_checked, f_out)
-            
-        
+            json.dump(line_ids_checked, f_out, indent=4)
+
+
     else:
         page = [[i, line.strip()] for i, line in enumerate(page)]
         print('Line Number: {}'.format(len(page)))
@@ -106,8 +152,7 @@ def create_ocr_json_of_single_page(ocr_file, out_file, check):
 
         with io.open(out_file, mode='w') as f_out:
             json.dump(page_dict, f_out)
-        
-        
+
 
 @click.command()
 @click.argument('ocr-dir', type=click.Path(exists=True))

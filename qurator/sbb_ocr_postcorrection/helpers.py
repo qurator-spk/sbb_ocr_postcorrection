@@ -392,6 +392,7 @@ def gather_aligned_sequences(aligned_corpus, only_similar=True):
 
     return aligned_sequences
 
+
 def reconstruct_aligned_corpus(aligned_sequences):
     '''
     '''
@@ -399,7 +400,6 @@ def reconstruct_aligned_corpus(aligned_sequences):
 
     for alignment in aligned_sequences:
         pass
-
 
 
 def combine_sequences_to_str(aligned_sequences):
