@@ -28,16 +28,16 @@ import qurator.dinglehopper.character_error_rate as character_error_rate
 from qurator.dinglehopper.align import seq_align
 
 @click.command()
-@click.argument('corrected-dir', type=click.Path(exists=True))
-@click.argument('id-dir', type=click.Path(exists=True))
-@click.argument('out-dir', type=click.Path(exists=False))
-def reconstruct_single_page_line_boundaries(corrected_dir, id_dir, out_dir):
+@click.argument('corrected-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('id-file', type=click.Path(exists=True, dir_okay=False))
+@click.argument('out-file', type=click.Path(exists=False, dir_okay=False))
+def reconstruct_single_page_line_boundaries(corrected_file, id_file, out_file):
     '''
     '''
-    with io.open(corrected_dir, mode='r') as f_in:
+    with io.open(corrected_file, mode='r') as f_in:
         page = f_in.readlines()
 
-    with io.open(id_dir, mode='r') as f_in:
+    with io.open(id_file, mode='r') as f_in:
         line_ids = json.load(f_in)
     
     page_reconstructed = []
@@ -54,7 +54,7 @@ def reconstruct_single_page_line_boundaries(corrected_dir, id_dir, out_dir):
             
             page_reconstructed.append(reconstructed_line)
     
-    with io.open(out_dir, mode='w') as f_out:
+    with io.open(out_file, mode='w') as f_out:
         for line in page_reconstructed:
             f_out.write(line)
 
