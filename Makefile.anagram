@@ -1,0 +1,130 @@
+
+GT_DIR=/home/kai.labusch/qurator/qurator-data/OCR-D-GT-repacked/./
+SRC_DIR=/home/kai.labusch/qurator/qurator-data/experiments/ocr-evaluation/OCR-D-GT-repacked/./
+
+DATA_DIR=/home/kai.labusch/qurator/TICCL/data
+
+LAMACHINE=docker run --rm -t -i --mount type=bind,source=$(DATA_DIR),target=/data proycon/lamachine:piccl
+
+INPUT_DIR=$(DATA_DIR)/input
+OUTPUT_DIR=$(DATA_DIR)/output
+
+PROCESSES=16
+
+define COMPARISON_SCRIPT
+
+import sys
+import re
+from pprint import pprint
+
+version_a = sys.argv[1]
+version_b = sys.argv[2]
+
+file_map = {}
+
+for line in sys.stdin:
+    line = line.strip()
+    parts = line.split('/')
+    id = parts[-3]
+    version = parts[-2]
+
+    m = re.match('.*_([0-9]+).*?', parts[-1])
+    if not m:
+         continue
+
+    page_id = m.group(1)
+
+    #print(id, page_id, version, line)
+    
+    if id not in file_map:
+        file_map[id] = {}
+
+    if page_id not in file_map[id]:
+        file_map[id][page_id] = {}
+
+    file_map[id][page_id][version] = line
+
+num=0
+for id, pages in file_map.items():
+    for page_id, versions in pages.items():
+        print('{} {} report-{}'.format(versions[version_a], versions[version_b], num))
+        num += 1
+endef
+export COMPARISON_SCRIPT
+
+define CREATE_RESULTS
+
+import re,os
+from base64 import decodebytes
+
+with open('$(OUTPUT_DIR)/INPUT.ticcl.folia.xml.txt') as f:
+   text = ''.join(l for l in f);
+
+parsed=[(content, decodebytes(file.encode()).decode().strip()) for file, content, _ in re.findall('<\!--(.*?)-->(((?!<\!--).)*)', text)]
+
+for content, file in parsed:
+    parent_dir = os.path.dirname(os.path.dirname(file))
+    source_dir = os.path.basename(os.path.dirname(file))
+    out_dir = parent_dir + '/anahash-' + source_dir
+    out_file = out_dir + '/' + os.path.basename(file)
+    
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
+    with open(out_file, 'w') as f:
+        f.write(content)
+
+endef
+export CREATE_RESULTS
+
+define TSV2TXT
+
+import pandas as pd
+import sys
+
+file = sys.argv[1]
+
+print(' '.join(pd.read_csv(file, sep='\t').TOKEN.astype(str)))
+
+endef
+export TSV2TXT
+
+input:
+	mkdir -p $(INPUT_DIR)
+	chmod a+w $(INPUT_DIR)
+output:
+	mkdir -p $(OUTPUT_DIR)
+	chmod a+w $(OUTPUT_DIR)
+copy-gt:	input
+	find $(GT_DIR) -name "OCR-D-GT-PAGE_*xml" -exec rsync -a --relative {} $(INPUT_DIR) \;
+
+copy-calamari:	input
+	find $(SRC_DIR) -name "OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb*xml" -exec rsync -a --relative {} $(INPUT_DIR) \;
+txt:
+	find $(INPUT_DIR) -name "*.txt" -exec rm {} \;
+	find $(INPUT_DIR) -name "*.xml" | parallel --bar --jobs $(PROCESSES) 'dinglehopper-extract {} > `dirname {}`/`basename -s .xml {}`.txt'
+
+join-calamari:	output
+	rm -f $(INPUT_DIR)/INPUT.txt
+	for i in `find $(INPUT_DIR) -name "OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb*.txt"`;do echo "<!--`echo $$i | base64`-->" >> $(INPUT_DIR)/INPUT.txt; cat $$i >> $(INPUT_DIR)/INPUT.txt ; done 
+	$(LAMACHINE) bash -c 'FoLiA-txt --class ocr /data/input/INPUT.txt -O /data/output; chmod a+w /data/output/*.xml'
+
+ticcl:	output
+	rm -f $(OUTPUT_DIR)/INPUT.ticcl.*
+	$(LAMACHINE) ticcl.nf --inputdir /data/output --outputdir /data/output --lexicon /data/int/deu-frak/deu-frak.aspell.dict --alphabet /data/int/deu-frak/deu-frak.aspell.dict.lc.chars --charconfus /data/int/deu-frak/deu-frak.aspell.dict.c0.d2.confusion  --language deu-frak --inputclass ocr
+
+convert-output:
+	$(LAMACHINE) FoLiA-2text /data/output/INPUT.ticcl.folia.xml -o /data/output
+
+create-result-files:
+	python -c "$$CREATE_RESULTS"
+
+compare-test:
+	find $(INPUT_DIR) -name "*.xml" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {} 
+
+compare-gt-ocr:
+	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {}  
+
+compare-gt-ocr-corrected:
+	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE anahash-OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {}  
+
