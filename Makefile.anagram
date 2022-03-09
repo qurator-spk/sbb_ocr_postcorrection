@@ -47,10 +47,27 @@ for line in sys.stdin:
 num=0
 for id, pages in file_map.items():
     for page_id, versions in pages.items():
-        print('{} {} report-{}'.format(versions[version_a], versions[version_b], num))
+        print('{} {} report-{}-{}-{}'.format(versions[version_a], versions[version_b], version_a, version_b, num))
         num += 1
 endef
 export COMPARISON_SCRIPT
+
+define CONCATENATE_REPORTS
+import glob
+import json
+import pandas as pd
+import sys
+
+out_file = sys.argv[1]
+
+d = [json.load(open(f)) for f in glob.glob('*.json')]
+
+df = pd.DataFrame(d)
+
+df.sort_values(['gt','ocr']).to_csv(out_file)
+
+endef
+export CONCATENATE_REPORTS
 
 define CREATE_RESULTS
 
@@ -126,5 +143,7 @@ compare-gt-ocr:
 	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {}  
 
 compare-gt-ocr-corrected:
-	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE anahash-OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {}  
+	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE anahash-OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {} 
+concatenate-reports:
+	python -c "$$CONCATENATE_REPORTS" report.csv 
 
