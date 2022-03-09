@@ -126,14 +126,14 @@ join-calamari:	output
 	for i in `find $(INPUT_DIR) -name "OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb*.txt"`;do echo "<!--`echo $$i | base64`-->" >> $(INPUT_DIR)/INPUT.txt; cat $$i >> $(INPUT_DIR)/INPUT.txt ; done 
 	$(LAMACHINE) bash -c 'FoLiA-txt --class ocr /data/input/INPUT.txt -O /data/output; chmod a+w /data/output/*.xml'
 
-ticcl:	output
+ticcl:	output txt join-calamari
 	rm -f $(OUTPUT_DIR)/INPUT.ticcl.*
 	$(LAMACHINE) ticcl.nf --inputdir /data/output --outputdir /data/output --lexicon /data/int/deu-frak/deu-frak.aspell.dict --alphabet /data/int/deu-frak/deu-frak.aspell.dict.lc.chars --charconfus /data/int/deu-frak/deu-frak.aspell.dict.c0.d2.confusion  --language deu-frak --inputclass ocr
 
-convert-output:
+convert-output:	ticcl
 	$(LAMACHINE) FoLiA-2text /data/output/INPUT.ticcl.folia.xml -o /data/output
 
-create-result-files:
+create-result-files: convert-output
 	python -c "$$CREATE_RESULTS"
 
 compare-test:
@@ -142,8 +142,8 @@ compare-test:
 compare-gt-ocr:
 	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {}  
 
-compare-gt-ocr-corrected:
+compare-gt-ocr-corrected:	create-result-files
 	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE anahash-OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {} 
-concatenate-reports:
+concatenate-reports:	compare-gt-ocr compare-gt-ocr-corrected
 	python -c "$$CONCATENATE_REPORTS" report.csv 
 
