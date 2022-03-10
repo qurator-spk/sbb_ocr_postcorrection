@@ -6,8 +6,8 @@ DATA_DIR=/home/kai.labusch/qurator/TICCL/data
 
 LAMACHINE=docker run --rm -t -i --mount type=bind,source=$(DATA_DIR),target=/data proycon/lamachine:piccl
 
-INPUT_DIR=$(DATA_DIR)/input
-OUTPUT_DIR=$(DATA_DIR)/output
+INPUT_DIR=input
+OUTPUT_DIR=output
 
 PROCESSES=16
 
@@ -25,10 +25,12 @@ file_map = {}
 for line in sys.stdin:
     line = line.strip()
     parts = line.split('/')
+    if len(parts) < 4:
+        continue
     id = parts[-3]
     version = parts[-2]
 
-    m = re.match('.*_([0-9]+).*?', parts[-1])
+    m = re.match('.*_([0-9]+).txt', parts[-1])
     if not m:
          continue
 
@@ -47,7 +49,7 @@ for line in sys.stdin:
 num=0
 for id, pages in file_map.items():
     for page_id, versions in pages.items():
-        print('{} {} report-{}-{}-{}'.format(versions[version_a], versions[version_b], version_a, version_b, num))
+        print('{} {} report-{}-{}-{}vs{}'.format(versions[version_a], versions[version_b], id, page_id, version_a, version_b))
         num += 1
 endef
 export COMPARISON_SCRIPT
@@ -60,7 +62,12 @@ import sys
 
 out_file = sys.argv[1]
 
-d = [json.load(open(f)) for f in glob.glob('*.json')]
+d = []
+for file in glob.glob('*.json'):
+    with open(file) as f:
+        n = json.load(f)
+    n['report']=file
+    d.append(n)
 
 df = pd.DataFrame(d)
 
@@ -117,7 +124,7 @@ copy-gt:	input
 
 copy-calamari:	input
 	find $(SRC_DIR) -name "OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb*xml" -exec rsync -a --relative {} $(INPUT_DIR) \;
-txt:
+txt:	copy-gt copy-calamari
 	find $(INPUT_DIR) -name "*.txt" -exec rm {} \;
 	find $(INPUT_DIR) -name "*.xml" | parallel --bar --jobs $(PROCESSES) 'dinglehopper-extract {} > `dirname {}`/`basename -s .xml {}`.txt'
 
@@ -142,8 +149,14 @@ compare-test:
 compare-gt-ocr:
 	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {}  
 
-compare-gt-ocr-corrected:	create-result-files
+compare-gt-ocr-corrected:
 	find $(INPUT_DIR) -name "*.txt" | python -c "$$COMPARISON_SCRIPT" OCR-D-GT-PAGE anahash-OCR-D-OCR-CALA-gt4histocr-OCR-D-GT-PAGE-BINPAGE-sbb | parallel --bar --jobs $(PROCESSES) eval dinglehopper {} 
-concatenate-reports:	compare-gt-ocr compare-gt-ocr-corrected
+concatenate-reports:
 	python -c "$$CONCATENATE_REPORTS" report.csv 
+clean:
+	rm -rf $(INPUT_DIR)/*
+	rm -rf $(OUTPUT_DIR)/*
+	rm -f report*
+
+all: create-result-files compare-gt-ocr compare-gt-ocr-corrected concatenate-reports
 
